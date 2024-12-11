@@ -22,7 +22,7 @@ import cv2                                                          # To read vi
 import glob
 
 # Configuration
-device = "cuda"
+device = device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  Probably this allows it to work on a 
 video_folder = 'input/*.mov'
 
 # define a emulator (set the settings of the emulator)
@@ -33,7 +33,7 @@ emulatorNew = EventEmulator(
     cutoff_hz          = 200,
     leak_rate_hz       = 1,
     shot_noise_rate_hz = 10,
-    device             = "cuda"
+    device             = device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 )
 
 # **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)

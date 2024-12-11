@@ -107,7 +107,7 @@ class EventEmulator(object):
             save_dvs_model_state: bool = False,
             output_width: int = None,
             output_height: int = None,
-            device: str = "cuda",
+            device: str = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
             cs_lambda_pixels: float = None,
             cs_tau_p_ms: float = None,
             hdr: bool = False,
@@ -1133,7 +1133,7 @@ if __name__ == "__main__":
         cutoff_hz=200,
         leak_rate_hz=1,
         shot_noise_rate_hz=10,
-        device="cuda",
+        device=device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     )
 
     cap = cv2.VideoCapture(
