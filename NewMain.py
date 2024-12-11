@@ -22,7 +22,7 @@ import cv2                                                          # To read vi
 import glob
 
 # Configuration
-device = device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  Probably this allows it to work on a 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  Probably this allows it to work on a 
 video_folder = 'input/*.mov'
 
 # define a emulator (set the settings of the emulator)
