@@ -1133,7 +1133,7 @@ if __name__ == "__main__":
         cutoff_hz=200,
         leak_rate_hz=1,
         shot_noise_rate_hz=10,
-        device=device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
     )
 
     cap = cv2.VideoCapture(
