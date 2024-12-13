@@ -22,7 +22,8 @@ import cv2                                                          # To read vi
 import glob
 
 # Configuration
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  Probably this allows it to work on a 
+# Probably this allows it to work on a cpu also, just possibly really slow
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # was just 'cuda' before
 video_folder = 'input/*.mov'
 
 # define a emulator (set the settings of the emulator)
@@ -97,48 +98,49 @@ while(True):
     # Capture a frame from each video
     for i, cap in enumerate(caps): #for all the videos (different cap) do:
         ret[i], frame_read = cap.read()  # Read a frame from the current video
+        print(frame_read.shape)
         if ret[i]: # If the frame was read successfully
             frame[i] = torch.from_numpy(frame_read)
         else: 
             frame[i] = None  # Append None if frame not read
             
-        if idx < N_frames: #TODO is this correct? it was this (if ret is True and idx < N_frames:). I think we should add something that if all ret[i] are false the programm should stop
-            # convert it to Luma frame
-            luma_frame = (frame * weights).sum(dim=-1) #The transform from rgb to grayscale (summed over last dimension: channels)
+    if idx < N_frames: #TODO is this correct? it was this (if ret is True and idx < N_frames:). I think we should add something that if all ret[i] are false the programm should stop
+        # convert it to Luma frame
+        luma_frame = (frame * weights).sum(dim=-1) #The transform from rgb to grayscale (summed over last dimension: channels)
 
-            # Now that the frame is a luma_frame we can start the  
-            print("="*50)
-            print("Currently calculating batch {} of in total {} batches".format(idx+1, N_frames)) # print function to track the progress
-            print("-"*50)
-            # emulate events --> emulatorNew.generate_events() calculates the events from the frame
-            # **IMPORTANT** The unit of timestamp here is in second, a floating number
-            new_events = emulatorNew.generate_events(luma_frame, current_time)
-            #TODO change new_events ouput, it should be (b,t,x,y,p)
-            
-            ### The output events is in a numpy array that has a data type of np.int32
-            ### THe shape is (N, 4), each row is one event in the format of (t, x, y, p)
-            ### The unit of timestamp here is in microseconds --> TODO: change this, needt to be(b,t,x,y,p)
+        # Now that the frame is a luma_frame we can start the  
+        print("="*50)
+        print("Currently calculating batch {} of in total {} batches".format(idx+1, N_frames)) # print function to track the progress
+        print("-"*50)
+        # emulate events --> emulatorNew.generate_events() calculates the events from the frame
+        # **IMPORTANT** The unit of timestamp here is in second, a floating number
+        new_events = emulatorNew.generate_events(luma_frame, current_time)
+        #TODO change new_events ouput, it should be (b,t,x,y,p)
+        
+        ### The output events is in a numpy array that has a data type of np.int32
+        ### THe shape is (N, 4), each row is one event in the format of (t, x, y, p)
+        ### The unit of timestamp here is in microseconds --> TODO: change this, needt to be(b,t,x,y,p)
 
-            # update time
-            current_time += delta_t  #sum the two tensors to update the current time of every frame in the batch
+        # update time
+        current_time += delta_t  #sum the two tensors to update the current time of every frame in the batch
 
-            # print atats of the new event --> TODO: change such that it works with multiple frames in the batch
-            if new_events is not None: 
-                num_events      = new_events.shape[0]
-                start_t         = new_events[0, 0]
-                end_t           = new_events[-1, 0]
-                event_time      = (new_events[-1, 0]-new_events[0, 0])
-                event_rate_kevs = (num_events/delta_t)/1e3
+        # print atats of the new event --> TODO: change such that it works with multiple frames in the batch
+        if new_events is not None: 
+            num_events      = new_events.shape[0]
+            start_t         = new_events[0, 0]
+            end_t           = new_events[-1, 0]
+            event_time      = (new_events[-1, 0]-new_events[0, 0])
+            event_rate_kevs = (num_events/delta_t)/1e3
 
-                print("Number of Events: {}\n"
-                    "Duration: {}s\n"
-                    "Start T: {:.5f}s\n"
-                    "End T: {:.5f}s\n"
-                    "Event Rate: {:.2f}KEV/s".format(
-                        num_events, event_time, start_t, end_t,
-                        event_rate_kevs))
-            idx += 1
-            print("="*50)
+            print("Number of Events: {}\n"
+                "Duration: {}s\n"
+                "Start T: {:.5f}s\n"
+                "End T: {:.5f}s\n"
+                "Event Rate: {:.2f}KEV/s".format(
+                    num_events, event_time, start_t, end_t,
+                    event_rate_kevs))
+        idx += 1
+        print("="*50)
     else: 
         break
 
