@@ -143,22 +143,22 @@ weights     = torch.tensor([0.299, 0.587, 0.114],device=device).view(1, 1, 1, 3)
 #         break
 
 while True:
-    batch_tensor = torch.zeros((batch_size, max_height, max_width), device=device)  # Initialize tensor for the batch
+    frame_tensor = torch.zeros((batch_size, max_height, max_width, channels), device=device)  # Initialize tensor for the batch
     all_ret_false = True  # Flag to determine if all videos are done
 
     for i, cap in enumerate(caps):
         ret, frame_read = cap.read()
         if ret:
             all_ret_false = False
-            frame_tensor = torch.from_numpy(frame_read).float().to(device)  # Convert frame to tensor
-            luma_frame = (frame_tensor * weights).sum(dim=-1)  # Compute luma frame
-            batch_tensor[i] = luma_frame
+            frame_tensor[i] = torch.from_numpy(frame_read).float().to(device)  # Convert frame to tensor
         else:
             # Append a zero tensor if video is finished
-            batch_tensor[i] = torch.zeros((max_height, max_width), device=device)
+            frame_tensor[i] = torch.zeros((max_height, max_width), device=device)
 
     if all_ret_false:  # Stop if all videos are done
         break
+
+    luma_frame = (frame_tensor * weights).sum(dim=-1)  # Compute luma frame
 
     # Generate events
     print("="*50)
