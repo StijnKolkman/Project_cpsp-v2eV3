@@ -22,7 +22,7 @@ import cv2                                                          # To read vi
 import glob
 
 # Configuration
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  Probably this allows it to work on a 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  This allows it to work on a cpu
 video_folder = 'input/*.mov'
 
 # define a emulator (set the settings of the emulator)
@@ -33,15 +33,15 @@ emulatorNew = EventEmulator(
     cutoff_hz          = 200,
     leak_rate_hz       = 1,
     shot_noise_rate_hz = 10,
-    device             = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device             = device
 )
 
 # **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
 torch.set_grad_enabled(False)
 
 # Read video files
-video_files = glob.glob(video_folder)
-batch_size = len(video_files)                                   #The batch size is equal to the amount of frames
+video_files = glob.glob(video_folder)                           #List of paths to the videos
+batch_size = len(video_files)                                   #The batch size is equal to the amount of videos
 if batch_size == 0:
     print("No video files found in the specified folder.")
     exit()
@@ -75,7 +75,7 @@ for i, video_file in enumerate(video_files):
     duration[i] = num_of_frames[i]/fps[i]
     print("Clip Duration: {}s".format(duration[i]))
     delta_t[i] = 1/fps[i]
-    print("Delta Frame Tiem: {}s".format(delta_t[i]))
+    print("Delta Frame Time: {}s".format(delta_t[i]))
     print() 
 
 new_events = None                                           #Initialise the new_events. Will be filled by the emulator with events
@@ -91,55 +91,102 @@ frame       = torch.zeros((batch_size, max_height, max_width, channels), device=
 luma_frames = torch.zeros((batch_size, max_height, max_width), device = device)         # tensor containing the luma_frames
 weights     = torch.tensor([0.299, 0.587, 0.114],device=device).view(1, 1, 1, 3)            # Weights for transfer to grayscale, see:https://docs.opencv.org/3.4/de/d25/imgproc_color_conversions.html#color_convert_rgb_gray 
 
-while(True): 
-    # Capture frame-by-frame
-    # TODO: what happens if ret is not True for one of the videos (for example if videos have different size)?
-    # Capture a frame from each video
-    for i, cap in enumerate(caps): #for all the videos (different cap) do:
-        ret[i], frame_read = cap.read()  # Read a frame from the current video
-        if ret[i]: # If the frame was read successfully
-            frame[i] = torch.from_numpy(frame_read)
-        else: 
-            frame[i] = None  # Append None if frame not read
+# while(True): 
+#     # Capture frame-by-frame
+#     # TODO: what happens if ret is not True for one of the videos (for example if videos have different size)?
+#     # Capture a frame from each video
+#     for i, cap in enumerate(caps): #for all the videos (different cap) do:
+#         ret[i], frame_read = cap.read()  # Read a frame from the current video
+#         if ret[i]: # If the frame was read successfully
+#             frame[i] = torch.from_numpy(frame_read)
+#         else: 
+#             frame[i] = None  # Append None if frame not read
             
-        if idx < N_frames: #TODO is this correct? it was this (if ret is True and idx < N_frames:). I think we should add something that if all ret[i] are false the programm should stop
-            # convert it to Luma frame
-            luma_frame = (frame * weights).sum(dim=-1) #The transform from rgb to grayscale (summed over last dimension: channels)
+#         if idx < N_frames: #TODO is this correct? it was this (if ret is True and idx < N_frames:). I think we should add something that if all ret[i] are false the programm should stop
+#             # convert it to Luma frame
+#             luma_frame = (frame * weights).sum(dim=-1) #The transform from rgb to grayscale (summed over last dimension: channels)
 
-            # Now that the frame is a luma_frame we can start the  
-            print("="*50)
-            print("Currently calculating batch {} of in total {} batches".format(idx+1, N_frames)) # print function to track the progress
-            print("-"*50)
-            # emulate events --> emulatorNew.generate_events() calculates the events from the frame
-            # **IMPORTANT** The unit of timestamp here is in second, a floating number
-            new_events = emulatorNew.generate_events(luma_frame, current_time)
-            #TODO change new_events ouput, it should be (b,t,x,y,p)
+#             # Now that the frame is a luma_frame we can start the  
+#             print("="*50)
+#             print("Currently calculating batch {} of in total {} batches".format(idx+1, N_frames)) # print function to track the progress
+#             print("-"*50)
+#             # emulate events --> emulatorNew.generate_events() calculates the events from the frame
+#             # **IMPORTANT** The unit of timestamp here is in second, a floating number
+#             new_events = emulatorNew.generate_events(luma_frame, current_time)
+#             #TODO change new_events ouput, it should be (b,t,x,y,p)
             
-            ### The output events is in a numpy array that has a data type of np.int32
-            ### THe shape is (N, 4), each row is one event in the format of (t, x, y, p)
-            ### The unit of timestamp here is in microseconds --> TODO: change this, needt to be(b,t,x,y,p)
+#             ### The output events is in a numpy array that has a data type of np.int32
+#             ### THe shape is (N, 4), each row is one event in the format of (t, x, y, p)
+#             ### The unit of timestamp here is in microseconds --> TODO: change this, needt to be(b,t,x,y,p)
 
-            # update time
-            current_time += delta_t  #sum the two tensors to update the current time of every frame in the batch
+#             # update time
+#             current_time += delta_t  #sum the two tensors to update the current time of every frame in the batch
 
-            # print atats of the new event --> TODO: change such that it works with multiple frames in the batch
-            if new_events is not None: 
-                num_events      = new_events.shape[0]
-                start_t         = new_events[0, 0]
-                end_t           = new_events[-1, 0]
-                event_time      = (new_events[-1, 0]-new_events[0, 0])
-                event_rate_kevs = (num_events/delta_t)/1e3
+#             # print atats of the new event --> TODO: change such that it works with multiple frames in the batch
+#             if new_events is not None: 
+#                 num_events      = new_events.shape[0]
+#                 start_t         = new_events[0, 0]
+#                 end_t           = new_events[-1, 0]
+#                 event_time      = (new_events[-1, 0]-new_events[0, 0])
+#                 event_rate_kevs = (num_events/delta_t)/1e3
 
-                print("Number of Events: {}\n"
-                    "Duration: {}s\n"
-                    "Start T: {:.5f}s\n"
-                    "End T: {:.5f}s\n"
-                    "Event Rate: {:.2f}KEV/s".format(
-                        num_events, event_time, start_t, end_t,
-                        event_rate_kevs))
-            idx += 1
-            print("="*50)
-    else: 
+#                 print("Number of Events: {}\n"
+#                     "Duration: {}s\n"
+#                     "Start T: {:.5f}s\n"
+#                     "End T: {:.5f}s\n"
+#                     "Event Rate: {:.2f}KEV/s".format(
+#                         num_events, event_time, start_t, end_t,
+#                         event_rate_kevs))
+#             idx += 1
+#             print("="*50)
+#     else: 
+#         break
+
+while True:
+    batch_tensor = torch.zeros((batch_size, max_height, max_width), device=device)  # Initialize tensor for the batch
+    all_ret_false = True  # Flag to determine if all videos are done
+
+    for i, cap in enumerate(caps):
+        ret, frame_read = cap.read()
+        if ret:
+            all_ret_false = False
+            frame_tensor = torch.from_numpy(frame_read).float().to(device)  # Convert frame to tensor
+            luma_frame = (frame_tensor * weights).sum(dim=-1)  # Compute luma frame
+            batch_tensor[i] = luma_frame
+        else:
+            # Append a zero tensor if video is finished
+            batch_tensor[i] = torch.zeros((max_height, max_width), device=device)
+
+    if all_ret_false:  # Stop if all videos are done
+        break
+
+    # Generate events
+    print("="*50)
+    print(f"Processing batch {idx + 1} of in total {N_frames} batches")
+    print("="*50)
+    new_events = emulatorNew.generate_events(batch_tensor, current_time)
+
+    # Update current time
+    current_time += delta_t
+
+    # Log event statistics for the batch
+    if new_events is not None:
+        num_events = new_events.shape[0]
+        start_t = new_events[0, 0]
+        end_t = new_events[-1, 0]
+        event_time = (new_events[-1, 0]-new_events[0, 0])
+        event_rate_kevs = (num_events/delta_t)/1e3
+        print("Number of Events: {}\n"
+            "Duration: {}s\n"
+            "Start T: {:.5f}s\n"
+            "End T: {:.5f}s\n"
+            "Event Rate: {:.2f}KEV/s".format(
+                num_events, event_time, start_t, end_t,
+                event_rate_kevs))
+
+    print("="*50)
+    idx += 1
+    if idx >= N_frames:  # Limit for testing
         break
 
 # Release resources
