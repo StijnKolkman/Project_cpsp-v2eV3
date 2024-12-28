@@ -25,26 +25,27 @@ import glob
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  This allows it to work on a cpu
 video_folder = 'input/*.mov'
 
-# define a emulator (set the settings of the emulator)
-emulatorNew = EventEmulator(
-    pos_thres          = 0.2,
-    neg_thres          = 0.2,
-    sigma_thres        = 0.03,
-    cutoff_hz          = 200,
-    leak_rate_hz       = 0,  #--> turned it to 0, but it was originaly 1 
-    shot_noise_rate_hz = 10,
-    device             = device
-)
-
-# **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
-torch.set_grad_enabled(False)
-
 # Read video files
 video_files = glob.glob(video_folder)                           #List of paths to the videos
 batch_size = len(video_files)                                   #The batch size is equal to the amount of videos
 if batch_size == 0:
     print("No video files found in the specified folder.")
     exit()
+
+# define a emulator (set the settings of the emulator)
+emulatorNew = EventEmulator(
+    pos_thres          = 0.7,
+    neg_thres          = 0.7,
+    sigma_thres        = 0.03,
+    cutoff_hz          = 15,
+    leak_rate_hz       = 0,  #--> turned it to 0, but it was originaly 1 
+    shot_noise_rate_hz = 10,
+    batch_size         = batch_size,
+    device             = device
+)
+
+# **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
+torch.set_grad_enabled(False)
 
 # Initialize resources and tensors
 caps        = []                                                                    #here the videos will be saved

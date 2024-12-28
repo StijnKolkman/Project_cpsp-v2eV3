@@ -99,6 +99,7 @@ def low_pass_filter(
     # first internal state is updated
     new_lp_log_frame = (1-eps)*lp_log_frame+eps*log_new_frame
 
+
     # then 2nd internal state (output) is updated from first
     # Note that observations show that one pole is nearly always dominant,
     # so the 2nd stage is just copy of first stage

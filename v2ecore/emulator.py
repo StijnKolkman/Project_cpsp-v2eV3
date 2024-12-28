@@ -685,8 +685,8 @@ class EventEmulator(object):
 
         self.lp_log_frame = low_pass_filter(
             log_new_frame=self.log_new_frame,
-            lp_log_frame=self.lp_log_frame,
-            inten01=inten01,
+            lp_log_frame=self.lp_log_frame, 
+            inten01=inten01, 
             delta_time=delta_time,
             cutoff_hz=self.cutoff_hz)
 
@@ -784,7 +784,7 @@ class EventEmulator(object):
         # that there is interval from previous frame
         # they end at t_frame.
         # delta_time=t_frame - self.t_previous
-        # e.g. t_start=0, t_end=1, min_ts_steps=2, i=0,1
+        # e.g. t_start=0, t_end=1, min_ts_steps=2, i= 0,1
         # ts=1*1/2, 2*1/2
         #  ts = self.t_previous + delta_time * (i + 1) / min_ts_steps
         # if min_ts_steps==1, then there is only a single timestamp at t_frame
