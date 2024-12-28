@@ -25,20 +25,6 @@ import glob
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  This allows it to work on a cpu
 video_folder = 'input/*.mov'
 
-# define a emulator (set the settings of the emulator)
-emulatorNew = EventEmulator(
-    pos_thres          = 0.2,
-    neg_thres          = 0.2,
-    sigma_thres        = 0.03,
-    cutoff_hz          = 200,
-    leak_rate_hz       = 1,
-    shot_noise_rate_hz = 10,
-    device             = device
-)
-
-# **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
-torch.set_grad_enabled(False)
-
 # Read video files
 video_files = glob.glob(video_folder)                           #List of paths to the videos
 batch_size = len(video_files)                                   #The batch size is equal to the amount of videos
@@ -46,13 +32,28 @@ if batch_size == 0:
     print("No video files found in the specified folder.")
     exit()
 
+# define a emulator (set the settings of the emulator)
+emulatorNew = EventEmulator(
+    pos_thres          = 0.7,
+    neg_thres          = 0.7,
+    sigma_thres        = 0.03,
+    cutoff_hz          = 15,
+    leak_rate_hz       = 0,  #--> turned it to 0, but it was originaly 1 
+    shot_noise_rate_hz = 10,
+    batch_size         = batch_size,
+    device             = device
+)
+
+# **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
+torch.set_grad_enabled(False)
+
 # Initialize resources and tensors
 caps        = []                                                                    #here the videos will be saved
 fps           = torch.zeros(batch_size,device=device)                               #tensor containing the fps of overy video
 num_of_frames = torch.zeros(batch_size, dtype=torch.int,device=device)              #tensor containing the number of frames of every video
 duration      = torch.zeros(batch_size,device=device)                               #tensor containing the duration of every video
-delta_t       = torch.zeros(batch_size,device=device)                               #tensor containing the delta_t of every video
-current_time  = torch.zeros(batch_size,device=device)                               #tensor containing for the current time in every video
+delta_t       = 0                                                                  #tensor containing the delta_t of every video
+current_time  = 0                                                                   #Current time is not a tensor anymore since we can assume that every video has the same size
 
 #loop over the video's in the input folder to get the frames and the information (fps, num_of_frames, duration, delta_t, current_time)
 print() 
@@ -74,8 +75,8 @@ for i, video_file in enumerate(video_files):
     print("Num of frames: {}".format(num_of_frames[i]))
     duration[i] = num_of_frames[i]/fps[i]
     print("Clip Duration: {}s".format(duration[i]))
-    delta_t[i] = 1/fps[i]
-    print("Delta Frame Time: {}s".format(delta_t[i]))
+    delta_t = 1/fps[i]                                      #TODO: This is still done for every video but since all the frame have the same delta_t we should change this
+    print("Delta Frame Time: {}s".format(delta_t))
     print() 
 
 new_events = None                                           #Initialise the new_events. Will be filled by the emulator with events
