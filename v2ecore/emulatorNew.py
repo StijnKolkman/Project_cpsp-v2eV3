@@ -16,12 +16,12 @@ import numpy as np
 import torch  # https://pytorch.org/docs/stable/torch.html
 from screeninfo import get_monitors
 
-from v2ecore.emulator_utils import compute_event_map, compute_photoreceptor_noise_voltage
-from v2ecore.emulator_utils import generate_shot_noise
-from v2ecore.emulator_utils import lin_log
-from v2ecore.emulator_utils import low_pass_filter
-from v2ecore.emulator_utils import rescale_intensity_frame
-from v2ecore.emulator_utils import subtract_leak_current
+from v2ecore.emulator_utilsNew import compute_event_map, compute_photoreceptor_noise_voltage
+from v2ecore.emulator_utilsNew import generate_shot_noise
+from v2ecore.emulator_utilsNew import lin_log
+from v2ecore.emulator_utilsNew import low_pass_filter
+from v2ecore.emulator_utilsNew import rescale_intensity_frame
+from v2ecore.emulator_utilsNew import subtract_leak_current
 from v2ecore.output.ae_text_output import DVSTextOutput
 from v2ecore.output.aedat2_output import AEDat2Output
 from v2ecore.output.aedat4_output import AEDat4Output
@@ -629,7 +629,7 @@ class EventEmulator(object):
         Returns
         -------
         events: np.ndarray if any events, else None
-            [N, 4], each row contains [timestamp, x coordinate, y coordinate, sign of event (+1 ON, -1 OFF)].
+            [N, 5], each row contains [batch, timestamp, x coordinate, y coordinate, sign of event (+1 ON, -1 OFF)].
             NOTE x,y, NOT y,x.
         """
 
@@ -638,7 +638,8 @@ class EventEmulator(object):
         # new_frame: the new intensity frame input
         # log_frame: the lowpass filtered brightness values
 
-        # like a DAVIS, write frame into the file if it's HDF5
+        # like a DAVIS, write frame into the file if it's HDF5 # TODO: currently turnt off
+        # If this is turned on the output events will be given hdf5 events
         if self.frame_h5_dataset is not None:
             # save frame data
             self.frame_h5_dataset[self.frame_counter] = \
@@ -655,17 +656,18 @@ class EventEmulator(object):
         # compute time difference between this and the previous frame
         delta_time = t_frame - self.t_previous
         # logger.debug('delta_time={}'.format(delta_time))
-
+        
+        # TODO: look into this, currently turned off
         if self.log_input and new_frame.dtype != np.float32:
             logger.warning('log_frame is True but input frome is not np.float32 datatype')
 
         # convert into torch tensor
-        self.new_frame = torch.tensor(new_frame, dtype=torch.float64,
-                                      device=self.device)
-        # lin-log mapping, if input is not already float32 log input
+        self.new_frame = new_frame # input is already a torch tensor so no transformation here
+         
+        # lin-log mapping, if input is not already float32 log input # TODO: change this, currently turned off 
         self.log_new_frame = lin_log(self.new_frame) if not self.log_input else self.new_frame
 
-        inten01 = None  # define for later
+        inten01 = None  # define for later #TODO: change this option, currently turned off 
         if self.cutoff_hz > 0 or self.shot_noise_rate_hz > 0:  # will use later
             # Time constant of the filter is proportional to
             # the intensity value (with offset to deal with DN=0)
@@ -691,6 +693,7 @@ class EventEmulator(object):
             cutoff_hz=self.cutoff_hz)
 
         # add photoreceptor noise if we are using photoreceptor noise to create shot noise
+        #TODO: look into this option, currently turned off
         if self.photoreceptor_noise and not self.base_log_frame is None:  # only add noise after the initial values are memorized and we can properly lowpass filter the noise
             self.photoreceptor_noise_vrms = compute_photoreceptor_noise_voltage(
                 shot_noise_rate_hz=self.shot_noise_rate_hz, f3db=self.cutoff_hz, sample_rate_hz=1 / delta_time,
@@ -704,6 +707,7 @@ class EventEmulator(object):
             # std=np.std(self.photoreceptor_noise_samples)
 
         # surround computations by time stepping the diffuser
+        #TODO: look into this function, currently turned off 
         if self.csdvs_enabled:
             self._update_csdvs(delta_time)
 
@@ -716,6 +720,7 @@ class EventEmulator(object):
 
             return None  # on first input frame we just setup the state of all internal nodes of pixels
 
+        #TODO: look into this, currently is turned off
         if self.scidvs:
             if self.scidvs_highpass is None:
                 self.scidvs_highpass = torch.zeros_like(self.lp_log_frame)
@@ -731,6 +736,8 @@ class EventEmulator(object):
         # R_l=(dI/dt)/Theta_on, so
         # R_l*Theta_on=dI/dt, so
         # dI=R_l*Theta_on*dt
+
+        #TODO: currently turned off since leak_rate_hz is set to 0 in the NewMain part
         if self.leak_rate_hz > 0:
             self.base_log_frame = subtract_leak_current(
                 base_log_frame=self.base_log_frame,
@@ -1007,16 +1014,18 @@ class EventEmulator(object):
             else:
                 self.save_recorded_single_pixel_states()
                 self.record_single_pixel_states=None
+
         # assign new time
         self.t_previous = t_frame
-        if len(events) > 0:
 
-            # debug TODO remove
+        # Check if in events there are events which are nonmonotomic (start time is later then end time)
+        if len(events) > 0:
             tsout = events[:, 0]
             tsoutdiff = np.diff(tsout)
             if (np.any(tsoutdiff < 0)):
                 print('nonmonotonic timestamp in events')
 
+        #return the events --> TODO: should be other size (should include the batches )
             return events # ndarray shape (N,4) where N is the number of events are rows are [t,x,y,p]. Confirmed by Tobi Oct 2023
         else:
             return None
@@ -1123,7 +1132,7 @@ class EventEmulator(object):
             self.cs_steps_taken.append(steps)
             self.cs_surround_frame = torch.squeeze(h_ten)
 
-
+'''
 if __name__ == "__main__":
     # define a emulator
     emulator = EventEmulator(
@@ -1194,3 +1203,4 @@ if __name__ == "__main__":
             break
 
     cap.release()
+'''
