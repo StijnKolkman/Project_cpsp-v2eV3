@@ -819,7 +819,6 @@ class EventEmulator(object):
                 pos_cord = (pos_evts_frame >= i + 1)
                 neg_cord = (neg_evts_frame >= i + 1)
 
-
                 # filter events with refractory_period
                 # only filter when refractory_period_s is large enough
                 # otherwise, pass everything

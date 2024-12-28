@@ -854,7 +854,7 @@ class EventEmulator(object):
                 print('The shape of pos_cord is: ',pos_cord.shape)
                 print('The shape of neg_cord is: ',neg_cord.shape)
 
-
+                #NOTE EVERYTHING BELOW HERE IS UNCHANGED
                 # filter events with refractory_period
                 # only filter when refractory_period_s is large enough
                 # otherwise, pass everything
