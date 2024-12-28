@@ -16,7 +16,7 @@ Usage              : Run the script in the v2e conda environment. For details on
 Command            : python NewMain.py
 ----------------------------------------------------------------------------
 """
-from v2ecore.emulatorNew import EventEmulator                       # Import the v2e simulator
+from v2ecore.emulatorBP import EventEmulator                       # Import the v2e simulator
 import torch                                                        # Torch
 import cv2                                                          # To read video using OpenCV
 import glob

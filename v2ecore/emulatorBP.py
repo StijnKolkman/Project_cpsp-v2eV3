@@ -55,7 +55,7 @@ class EventEmulator(object):
     SINGLE_PIXEL_MAX_SAMPLES=10000
 
     # scidvs adaptation
-    def scidvs_dvdt(self, v: torch.Tensor, tau: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def scidvs_dvdt(self, v, tau=None):
         """
 
         Parameters
@@ -107,7 +107,7 @@ class EventEmulator(object):
             save_dvs_model_state: bool = False,
             output_width: int = None,
             output_height: int = None,
-            device: str = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            device: str = "cuda",
             cs_lambda_pixels: float = None,
             cs_tau_p_ms: float = None,
             hdr: bool = False,
@@ -374,12 +374,18 @@ class EventEmulator(object):
     def prepare_storage(self, n_frames, frame_ts):
         # extra prepare for frame storage
         if self.dvs_h5:
-            # for frame
+            total_frames = n_frames + self.batch_size
             self.frame_h5_dataset = self.dvs_h5.create_dataset(
-                name="frame",
-                shape=(n_frames, self.output_height, self.output_width),
-                dtype="uint8",
-                compression="gzip")
+             name="frame",
+             shape=(total_frames, self.output_height, self.output_width),
+             dtype="uint8",
+             compression="gzip")
+            # for frame
+            #self.frame_h5_dataset = self.dvs_h5.create_dataset(
+            #    name="frame",
+            #    shape=(n_frames, self.output_height, self.output_width),
+            #    dtype="uint8",
+            #    compression="gzip")
 
             frame_ts_arr = np.array(frame_ts, dtype=np.float32) * 1e6
             self.frame_ts_dataset = self.dvs_h5.create_dataset(
@@ -638,14 +644,42 @@ class EventEmulator(object):
         # new_frame: the new intensity frame input
         # log_frame: the lowpass filtered brightness values
 
-        # like a DAVIS, write frame into the file if it's HDF5
-        if self.frame_h5_dataset is not None:
-            # save frame data
-            self.frame_h5_dataset[self.frame_counter] = \
-                new_frame.astype(np.uint8)
+       # like a DAVIS, write frame into the file if it's HDF5
 
+       ####################
+       #If loop 1
+       ####################
+        self.batch_size = new_frame.shape[0]
+
+        if self.frame_h5_dataset is not None:
+         #OLD CODE
+            # save frame data
+            #self.frame_h5_dataset[self.frame_counter] = \
+                #new_frame.astype(np.uint8)
+           # Convert the new frame batch to uint8
+         #NEW CODE
+         '''
+         new_frane_batch with [batch_size, max_height, max_width] 8 bit int
+
+         This loop iterates over each frame in the batch.
+
+         new_frame_batch.shape[0] gives the batch size (the number of frames in the batch).
+         i is the index of the current frame within the batch, ranging from 0 to batch_size - 1.
+
+         In each iteration of the loop:
+         new_frame_batch[i] retrieves the i-th frame in the batch (with shape [max_height, max_width]).
+         self.frame_counter + i determines the index in the HDF5 dataset where this frame should be saved. This ensures that the frames are stored sequentially in the dataset, starting from self.frame_counter.
+         '''
+         new_frame_batch = new_frame.astype(np.uint8)  #Shape: [batch_size, max_height, max_width]
+         # Save each frame from the batch to the HDF5 dataset
+         for i in range(new_frame_batch.shape[0]):  # Loop over batch size
+             self.frame_h5_dataset[self.frame_counter + i] = new_frame_batch[i]
+         # Update the frame counter after saving the batch
+         self.frame_counter += new_frame_batch.shape[0]
+            
+            
         # update frame counter
-        self.frame_counter += 1
+       # self.frame_counter += 1
 
         if t_frame < self.t_previous:
             raise ValueError(
@@ -654,18 +688,51 @@ class EventEmulator(object):
 
         # compute time difference between this and the previous frame
         delta_time = t_frame - self.t_previous
-        # logger.debug('delta_time={}'.format(delta_time))
+        #logger.debug('delta_time={}'.format(delta_time))
 
-        if self.log_input and new_frame.dtype != np.float32:
-            logger.warning('log_frame is True but input frome is not np.float32 datatype')
+        if self.log_input:
+          # Ensure that all frames in the batch are of dtype np.float32
+          if isinstance(new_frame, (np.ndarray, torch.Tensor)):
+             if new_frame.dtype != np.float32:
+                 logger.warning("log_frame is True but input frame batch is not np.float32 datatype")
 
+        #if self.log_input and new_frame.dtype != np.float32:
+        #    logger.warning('log_frame is True but input frome is not np.float32 datatype')
+
+        #####################
+        #Part 2
+        ########################
+        '''
+        Making the new frame into a self with 64-bit float running om the device given in self.device (GPU)
+        '''
         # convert into torch tensor
-        self.new_frame = torch.tensor(new_frame, dtype=torch.float64,
-                                      device=self.device)
-        # lin-log mapping, if input is not already float32 log input
+        self.new_frame = torch.tensor(new_frame, dtype=torch.float64, device=self.device)
+       
+
+        '''
+        The Lin_log can be used for Batches.
+        By applying lin_log:
+        - Low-Intensity Details: Low-intensity pixels, such as those corresponding to shadows or darker regions, are amplified in a controlled, linear manner to make them more visible.
+        - High-Intensity Details: Bright pixels (or regions) are logarithmically compressed, preventing them from dominating the entire image and ensuring that bright spots don't cause clipping or loss of information.
+
+        '''
         self.log_new_frame = lin_log(self.new_frame) if not self.log_input else self.new_frame
+       
 
         inten01 = None  # define for later
+
+        '''
+        
+        '''
+
+        # Apply filtering or noise rate logic if cutoff or shot noise is defined
+        if self.cutoff_hz > 0 or self.shot_noise_rate_hz > 0:
+         # The time constant is proportional to the intensity value, offset to handle DN=0
+         # We limit the max time constant to ~1/10 of the white intensity level.
+         # Assuming rescale_intensity_frame works with batched inputs, we process the entire batch.
+         inten01 = rescale_intensity_frame(self.new_frame.clone().detach())  # Rescale intensity for the batch 
+
+        #Just a filter can be turned of by setting the inputs to 0 NICE TO HAVE
         if self.cutoff_hz > 0 or self.shot_noise_rate_hz > 0:  # will use later
             # Time constant of the filter is proportional to
             # the intensity value (with offset to deal with DN=0)
@@ -1123,7 +1190,7 @@ class EventEmulator(object):
             self.cs_steps_taken.append(steps)
             self.cs_surround_frame = torch.squeeze(h_ten)
 
-''' NOT NEEDED if run from NewMain. from old not made for batch, see NewMain for batch implementiaon 
+
 if __name__ == "__main__":
     # define a emulator
     emulator = EventEmulator(
@@ -1133,7 +1200,7 @@ if __name__ == "__main__":
         cutoff_hz=200,
         leak_rate_hz=1,
         shot_noise_rate_hz=10,
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+        device="cuda",
     )
 
     cap = cv2.VideoCapture(
@@ -1194,4 +1261,3 @@ if __name__ == "__main__":
             break
 
     cap.release()
-'''
