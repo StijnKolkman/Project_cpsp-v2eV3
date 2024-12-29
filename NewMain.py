@@ -16,7 +16,7 @@ Usage              : Run the script in the v2e conda environment. For details on
 Command            : python NewMain.py
 ----------------------------------------------------------------------------
 """
-from v2ecore.emulatorBP import EventEmulator                       # Import the v2e simulator
+from v2ecore.emulatorNew import EventEmulator                       # Import the v2e simulator
 import torch                                                        # Torch
 import cv2                                                          # To read video using OpenCV
 import glob
@@ -34,14 +34,15 @@ if batch_size == 0:
 
 # define a emulator (set the settings of the emulator)
 emulatorNew = EventEmulator(
-    pos_thres          = 0.7,
-    neg_thres          = 0.7,
+    pos_thres          = 0.01,
+    neg_thres          = 0.01,
     sigma_thres        = 0.03,
-    cutoff_hz          = 15,
+    cutoff_hz          = 1,
     leak_rate_hz       = 0,  #--> turned it to 0, but it was originaly 1 
     shot_noise_rate_hz = 10,
     batch_size         = batch_size,
-    device             = device
+    device             = device,
+    refractory_period_s= 0.01
 )
 
 # **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)

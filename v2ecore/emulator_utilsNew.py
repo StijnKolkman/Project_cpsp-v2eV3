@@ -147,7 +147,7 @@ def subtract_leak_current(base_log_frame,
     return base_log_frame-delta_leak
 
 
-def compute_event_map(diff_frame, pos_thres, neg_thres):
+def compute_event_map(diff_frame, pos_thres, neg_thres): #This function is ready for batch processing
     """
     Compute event maps, i.e. 3D arrays of [batch_size, height, width] containing quantized number of ON and OFF events.
 

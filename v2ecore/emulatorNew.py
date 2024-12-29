@@ -511,6 +511,7 @@ class EventEmulator(object):
             self.timestamp_mem = torch.zeros(
                 first_frame_linear.shape, dtype=torch.float32,
                 device=self.device) - self.refractory_period_s
+            print('size of timestamp_mem is: ', self.timestamp_mem.shape)
 
     def set_dvs_params(self, model: str):
         if model == 'clean':
@@ -785,7 +786,9 @@ class EventEmulator(object):
 
         # generate event map
         # print(f'\ndiff_frame max={torch.max(self.diff_frame)} pos_thres mean={torch.mean(self.pos_thres)} expect {int(torch.max(self.diff_frame)/torch.mean(self.pos_thres))} max events')
-        pos_evts_frame, neg_evts_frame = compute_event_map(self.diff_frame, self.pos_thres, self.neg_thres)
+        pos_evts_frame, neg_evts_frame = compute_event_map(self.diff_frame, self.pos_thres, self.neg_thres) # size (Batch, x x). contains the amount of events
+        print(pos_evts_frame)
+        print("Max:", pos_evts_frame.max().item())
 
        # Get the maximum number of events in any pixel across the batch for both positive and negative events
         max_pos_events, _ = pos_evts_frame.view(pos_evts_frame.size(0), -1).max(dim=1)  # Shape: (batch_size,)
@@ -824,6 +827,9 @@ class EventEmulator(object):
             start=self.t_previous+ts_step,
             end=t_frame,
             steps=min_ts_steps, dtype=torch.float32, device=self.device)
+        ts = ts.unsqueeze(0).repeat(self.batch_size, 1)  # size = (batch_size, steps) --> THIS IS WRONG< NEED TO CHANGE!!!!
+
+        print('The size of ts is: ', ts.shape)
         # print(f'ts={ts}')
 
         # record final events update
@@ -849,8 +855,9 @@ class EventEmulator(object):
 
                 # it must be >= because we need to make event for
                 # each iteration up to total # events for that pixel
+                # This parts checks per pixel if the amount of events is bigger of the same as the current iteration
                 pos_cord = (pos_evts_frame >= i + 1) #the bool array of pixels containing events in this iteration
-                neg_cord = (neg_evts_frame >= i + 1)
+                neg_cord = (neg_evts_frame >= i + 1) # --> shape is (Batch Heigth Width)
                 print('The shape of pos_cord is: ',pos_cord.shape)
                 print('The shape of neg_cord is: ',neg_cord.shape)
 
@@ -863,22 +870,30 @@ class EventEmulator(object):
                 # Brian McReynolds thinks that this effect probably only makes a significant difference if the temporal resolution of the signal
                 # is high enough so that dt is less than one refractory period.
                 if self.refractory_period_s > ts_step:
+                    ts_i = ts[:, i].view(self.batch_size, 1, 1)
+                    print('Size of ts_i_expanded is: ', ts_i.shape)
+                    print(ts_i)
+
                     pos_time_since_last_spike = (
-                            pos_cord * ts[i] - self.timestamp_mem)
+                            pos_cord * ts_i - self.timestamp_mem)
                     neg_time_since_last_spike = (
-                            neg_cord * ts[i] - self.timestamp_mem)
+                            neg_cord * ts_i - self.timestamp_mem)
+                    print('Size of pos_time_since_last_spike is: ', pos_time_since_last_spike.shape)
+                    print(pos_time_since_last_spike)
 
                     # filter the events
                     pos_cord = (
                             pos_time_since_last_spike > self.refractory_period_s)
                     neg_cord = (
                             neg_time_since_last_spike > self.refractory_period_s)
+                    print('pos_cord', pos_cord.shape)
+                    print(pos_cord)
 
                     # assign new history
                     self.timestamp_mem = torch.where(
-                        pos_cord, ts[i], self.timestamp_mem)
+                        pos_cord, ts_i, self.timestamp_mem)
                     self.timestamp_mem = torch.where(
-                        neg_cord, ts[i], self.timestamp_mem)
+                        neg_cord, ts_i, self.timestamp_mem)
 
                 # update event count frames with the shot noise
                 final_pos_evts_frame += pos_cord
@@ -891,12 +906,16 @@ class EventEmulator(object):
                 # each containing the indices (in that dimension) of all non-zero elements of input .
 
                 # pos_event_xy and neg_event_xy each return two 1-d tensors each with same length of the number of events
-                #   Tensor 0 is list of y addresses (first dimension in pos_cord input)
-                #   Tensor 1 is list of x addresses
+                #   Tensor 0 is list of the batch number
+                #   Tensor 1 is list of y addresses (first dimension in pos_cord input)
+                #   Tensor 2 is list of x addresses
                 pos_event_xy = pos_cord.nonzero(as_tuple=True)
                 neg_event_xy = neg_cord.nonzero(as_tuple=True)
+                print('The size of the events tensor is: ',pos_event_xy[0].shape,'The events are in batches: ',pos_event_xy[0])
+                print('The size of the Y tensor is: ',pos_event_xy[1].shape,'Y adresses of the events: ', pos_event_xy[1])
+                print('The size of the X tensor is: ',pos_event_xy[2].shape,' X adresses of the events: ', pos_event_xy[2])
 
-                events_curr_iter = self.get_event_list_from_coords(pos_event_xy, neg_event_xy, ts[i])
+                events_curr_iter = self.get_event_list_from_coords(pos_event_xy, neg_event_xy, ts_i)
 
                 # shuffle and append to the events collectors
                 if events_curr_iter is not None:
@@ -925,7 +944,7 @@ class EventEmulator(object):
         signnoise_label=torch.ones(num_signal_events,dtype=torch.bool, device=self.device) if self.label_signal_noise else None # all signal so far
 
         # This was in the loop, here we calculate loop-independent quantities
-        if self.shot_noise_rate_hz > 0 and not self.photoreceptor_noise:
+        if self.shot_noise_rate_hz > 0 and not self.photoreceptor_noise: # NO CLUE IF THIS GOES YET CORRECT WITH BATCH PROCESSING
             # generate all the noise events for this entire input frame; there could be (but unlikely) several per pixel but only 1 on or off event is returned here
             shot_on_cord, shot_off_cord = generate_shot_noise(
                 shot_noise_rate_hz=self.shot_noise_rate_hz,
@@ -978,8 +997,8 @@ class EventEmulator(object):
 
 
         if len(events) > 0:
-            events = events.cpu().data.numpy() # # ndarray shape (N,4) where N is the number of events are rows are [t,x,y,p]
-            timestamps=events[:,0]
+            events = events.cpu().data.numpy() # # ndarray shape (N,5) where N is the number of events are rows are [b,t,x,y,p]
+            timestamps=events[:,1]
             if np.any(np.diff(timestamps)<0):
                 idx=np.argwhere(np.diff(timestamps)<0)
                 logger.warning(f'nonmonotonic timestamp(s) at indices {idx}')
@@ -988,8 +1007,8 @@ class EventEmulator(object):
             if self.dvs_h5 is not None:
                 # convert data to uint32 (microsecs) format
                 temp_events = np.array(events, dtype=np.float32)
-                temp_events[:, 0] = temp_events[:, 0] * 1e6
-                temp_events[temp_events[:, 3] == -1, 3] = 0
+                temp_events[:, 1] = temp_events[:, 1] * 1e6
+                temp_events[temp_events[:, 4] == -1, 3] = 0
                 temp_events = temp_events.astype(np.uint32)
 
                 # save events
@@ -1048,51 +1067,57 @@ class EventEmulator(object):
 
         # Check if in events there are events which are nonmonotomic (start time is later then end time)
         if len(events) > 0:
-            tsout = events[:, 0]
+            tsout = events[:, 1]
             tsoutdiff = np.diff(tsout)
             if (np.any(tsoutdiff < 0)):
                 print('nonmonotonic timestamp in events')
 
-        #return the events --> TODO: should be other size (should include the batches )
-            return events # ndarray shape (N,4) where N is the number of events are rows are [t,x,y,p]. Confirmed by Tobi Oct 2023
+            return events # ndarray shape (N,5) where N is the number of events are rows are [b,t,x,y,p]. Confirmed by Tobi Oct 2023
         else:
             return None
 
-    def get_event_list_from_coords(self, pos_event_xy, neg_event_xy, ts):
+    def get_event_list_from_coords(self, pos_event_xy, neg_event_xy, ts): #works with batch processing now
         """ Gets event list from ON and OFF event coordinate lists.
-        :param pos_event_xy: Tensor[2,n] where n is number of ON events, [0,n] are y addresses and [1,n] are x addresses
-        :param neg_event_xy: Tensor[2,m] where m is number of ON events, [0,m] are y addresses and [1,m] are x addresses
-        :param ts: the timestamp given to all events (scalar)
-        :returns: Tensor[n+m,4] of AER [t, x, y, p]
+        :param pos_event_xy: Tensor[3,n] where n is number of ON events, [0,n] are the batch numbers, [1,n] are y addresses and [2,n] are x addresses
+        :param neg_event_xy: Tensor[3,n] where n is number of ON events, [0,n] are the batch numbers, [1,n] are y addresses and [2,n] are x addresses
+        :param ts: the timestamp given to all events tensor [batch_size, 1]
+        :returns: Tensor[n+m,4] of AER [b,t, x, y, p]
         """
         # update event stats
-        num_pos_events = pos_event_xy[0].shape[0]
-        num_neg_events = neg_event_xy[0].shape[0]
+        num_pos_events = pos_event_xy[1].shape[0]
+        num_neg_events = neg_event_xy[1].shape[0]
         num_events = num_pos_events + num_neg_events
+        print('size num_pos_events is: ', num_pos_events)
+        print('size num_neg_events is: ', num_neg_events)
+        print('size num_events is: ', num_events)
         events_curr_iter=None
+
         if num_events > 0:
             # following will update stats for all events (signal and shot noise)
             self.num_events_on += num_pos_events
             self.num_events_off += num_neg_events
             self.num_events_total += num_events
 
-            # events_curr_iter is 2d array [N,4] with 2nd dimension [t,x,y,p]
+            # events_curr_iter is 2d array [N,5] with 2nd dimension [b,t,x,y,p]
             events_curr_iter = torch.ones(  # set all elements 1 so that polarities start out positive ON events
-                (num_events, 4), dtype=torch.float32,
+                (num_events, 5), dtype=torch.float32,
                 device=self.device)
-            events_curr_iter[:, 0] *= ts  # put all timestamps into events
+            events_curr_iter[:, 1] = ts[1]  # put all timestamps into events
 
             # pos_event cords
             # events_curr_iter is 2d array [N,4] with 2nd dimension [t,x,y,p]. N is the number of events from this frame
             # we replace the x's (element 1) and y's (element 2) with the on event coordinates in the first num_pos_coord entries of events_curr_iter
-            events_curr_iter[:num_pos_events, 1] = pos_event_xy[1]  # tensor 1 of pos_event_xy is x addresses
-            events_curr_iter[:num_pos_events, 2] = pos_event_xy[0]  # tensor 0 of pos_event_xy is y addresses
+            events_curr_iter[:num_pos_events, 0] = pos_event_xy[0] # tensor 0 of pos_event_xy is the batch number
+            events_curr_iter[:num_pos_events, 2] = pos_event_xy[2]  # tensor 2 of pos_event_xy is x addresses
+            events_curr_iter[:num_pos_events, 3] = pos_event_xy[1]  # tensor 1 of pos_event_xy is y addresses
 
             # neg event cords
             # we replace the x's (element 1) and y's (element 2) with the off event coordinates in the remaining entries num_pos_events: entries of events_curr_iter
-            events_curr_iter[num_pos_events:, 1] = neg_event_xy[1]
-            events_curr_iter[num_pos_events:, 2] = neg_event_xy[0]
-            events_curr_iter[num_pos_events:, 3] = -1  # neg events polarity is -1 so flip the signs
+            events_curr_iter[num_pos_events:, 0] = neg_event_xy[0] # tensor 0 of neg_event_xy is the batch number
+            events_curr_iter[num_pos_events:, 2] = neg_event_xy[2]
+            events_curr_iter[num_pos_events:, 3] = neg_event_xy[1]
+            events_curr_iter[num_pos_events:, 4] = -1  # neg events polarity is -1 so flip the signs
+            print('first event in events_curr_iter is: (batch, time, x, y, p):', events_curr_iter[1,:])
         return events_curr_iter
 
     def _update_csdvs(self, delta_time):
