@@ -1081,7 +1081,7 @@ class EventEmulator(object):
         :param pos_event_xy: Tensor[3,n] where n is number of ON events, [0,n] are the batch numbers, [1,n] are y addresses and [2,n] are x addresses
         :param neg_event_xy: Tensor[3,n] where n is number of ON events, [0,n] are the batch numbers, [1,n] are y addresses and [2,n] are x addresses
         :param ts: the timestamp given to all events tensor [batch_size, 1]
-        :returns: Tensor[n+m,4] of AER [b,t, x, y, p]
+        :returns: Tensor[n+m,4] of AER [b, t, x, y, p]
         """
         # update event stats
         num_pos_events = pos_event_xy[1].shape[0]

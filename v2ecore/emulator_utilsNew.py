@@ -13,11 +13,6 @@ import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
-
-
-import torch
-import math
-
 def lin_log(x, threshold=20): # This function is ready for batch processing
     """
     Linear mapping + logarithmic mapping for batched input.
@@ -48,8 +43,6 @@ def lin_log(x, threshold=20): # This function is ready for batch processing
 
     return y.float()  # Convert back to float32 if needed
 
-
-
 def rescale_intensity_frame(new_frame): #This function is ready for batch processing
     """Rescale intensity frames.
 
@@ -57,7 +50,6 @@ def rescale_intensity_frame(new_frame): #This function is ready for batch proces
     limit max time constant to ~1/10 of white intensity level
     """
     return (new_frame+20)/275.
-
 
 def low_pass_filter( #this function is ready for batch processing
         log_new_frame,
@@ -68,7 +60,7 @@ def low_pass_filter( #this function is ready for batch processing
     """Compute intensity-dependent low-pass filter.
 
     # Arguments
-        log_new_frame: batch containing new frames in lin-log representation.
+        log_new_frame: batch containing new frames in lin-log representation. (shape: batch x height x width)
         lp_log_frame: previous low-pass filtered frame (shape: batch x height x width).
         inten01: shape is batch x height x width
         delta_time: time difference between the current and previous frame.
@@ -88,10 +80,10 @@ def low_pass_filter( #this function is ready for batch processing
 
     # make the update proportional to the local intensity
     # the more intensity, the shorter the time constant
-    if inten01 is not None:
-        eps = inten01*(delta_time/tau)
-        n, h, w = eps.size()
-        print(f"eps has size {n}x{h}x{w}")
+    if inten01 is not None: #inten01 is None if the following is false: if self.cutoff_hz > 0 or self.shot_noise_rate_hz > 0:  
+        eps = inten01*(delta_time/tau) # (b x h x w)
+        b, h, w = eps.size()
+        print(f"eps has size {b}x{h}x{w}")
         max_eps = torch.max(eps)
         if max_eps >0.3:
             IIR_MAX_WARNINGS = 10
@@ -103,13 +95,13 @@ def low_pass_filter( #this function is ready for batch processing
 
         eps = torch.clamp(eps, max=1)  # keep filter stable
     else:
-        eps=delta_time/tau
+        eps=delta_time/tau 
 
     # first internal state is updated
     new_lp_log_frame = (1-eps)*lp_log_frame+eps*log_new_frame
 
-    n, h, w = new_lp_log_frame.size()
-    print(f"new_lp_log_frame has size {n}x{h}x{w}")
+    b, h, w = new_lp_log_frame.size()
+    print(f"new_lp_log_frame has size {b}x{h}x{w}")
 
     # then 2nd internal state (output) is updated from first
     # Note that observations show that one pole is nearly always dominant,
@@ -123,14 +115,25 @@ def low_pass_filter( #this function is ready for batch processing
 
 low_pass_filter.iir_warning_count=0
 
-
-def subtract_leak_current(base_log_frame,
+def subtract_leak_current(base_log_frame,# this function is ready for batch processing
                           leak_rate_hz,
                           delta_time,
                           pos_thres,
                           leak_jitter_fraction,
                           noise_rate_array):
-    """Subtract leak current from base log frame."""
+    """Substract the leak current from the base frame.
+
+    # Arguments
+        base_log_frame: Tensor containing the batches of first frames. (shape: batch x height x width)
+        leak_rate_hz: Leak rate parameter, integer
+        delta_time: time difference between the current and previous frame.
+        pos_thres: the positive treshold 
+        leak_jitter_fraction: parameter
+        noise_rate_array: Tensor containing the noise rates. (shape: batch x height x width)
+
+    # Returns
+        base_log_fram-delta_leak: base_log_frame where the leak current id from substracted.
+    """
 
     rand = torch.randn(
         noise_rate_array.shape, dtype=torch.float32,
@@ -161,14 +164,14 @@ def compute_event_map(diff_frame, pos_thres, neg_thres): #This function is ready
     """
     print('Now starting the compute_event_map function')
     # Extract positive and negative differences
-    pos_frame = F.relu(diff_frame)  # Keeps positive values
-    neg_frame = F.relu(-diff_frame)  # Keeps negative values
+    pos_frame = F.relu(diff_frame)  # Keeps all positive values [batch_size, height, width]
+    neg_frame = F.relu(-diff_frame)  # Keeps all negative values [batch_size, height, width]
 
     # Compute quantized number of ON and OFF events for each pixel
     pos_evts_frame = (pos_frame / pos_thres).floor().type(torch.int32)
     neg_evts_frame = (neg_frame / neg_thres).floor().type(torch.int32)
-    n, h, w = pos_evts_frame.size()
-    print(f"pos_evts_frame has size {n}x{h}x{w}")
+    b, h, w = pos_evts_frame.size()
+    print(f"pos_evts_frame has size {b}x{h}x{w}")
     print('Finished the compute_event_map function')
     print('')
     
@@ -176,7 +179,7 @@ def compute_event_map(diff_frame, pos_thres, neg_thres): #This function is ready
     return pos_evts_frame, neg_evts_frame
 
 
-def compute_photoreceptor_noise_voltage(shot_noise_rate_hz, f3db, sample_rate_hz, pos_thr, neg_thr, sigma_thr) -> float:
+def compute_photoreceptor_noise_voltage(shot_noise_rate_hz, f3db, sample_rate_hz, pos_thr, neg_thr, sigma_thr) -> float: # this class is ready for batch processing
     """
      Computes the necessary photoreceptor noise voltage to result in observed shot noise rate at low light intensity.
      This computation relies on the known f3dB photoreceptor lowpass filter cutoff frequency and the known (nominal) event threshold.
@@ -186,18 +189,12 @@ def compute_photoreceptor_noise_voltage(shot_noise_rate_hz, f3db, sample_rate_hz
 
     Parameters
     -----------
-     shot_noise_rate_hz: float
-        the desired pixel shot noise rate in hz
-     f3db: float
-        the 1st-order IIR RC lowpass filter cutoff frequency in Hz
-     sample_rate_hz: float
-        the sample rate (up-sampled frame rate) before IIR lowpassing the noise
-     pos_thr:float
-        on threshold in ln units
-     neg_thr:float
-        off threshold in ln units. The on and off thresholds are averaged to obtain a single threshold.
-     sigma_thr: float
-        the std deviations of the thresholds
+     shot_noise_rate_hz: float the desired pixel shot noise rate in hz
+     f3db: float the 1st-order IIR RC lowpass filter cutoff frequency in Hz
+     sample_rate_hz: float the sample rate (up-sampled frame rate) before IIR lowpassing the noise
+     pos_thr:float on threshold in ln units
+     neg_thr:float off threshold in ln units. The on and off thresholds are averaged to obtain a single threshold.
+     sigma_thr: float the std deviations of the thresholds
 
     Returns
     -----------
@@ -296,7 +293,7 @@ compute_photoreceptor_noise_voltage.vrms_computation_printed=False
 compute_photoreceptor_noise_voltage.last_sample_rate=None
 compute_photoreceptor_noise_voltage.last_vn=None
 
-def generate_shot_noise(
+def generate_shot_noise( # this function is ready for batch processing
         shot_noise_rate_hz,
         delta_time,
         shot_noise_inten_factor,
@@ -308,7 +305,7 @@ def generate_shot_noise(
     :param delta_time: the delta time for this frame in seconds
     :param shot_noise_inten_factor: factor to model the slight increase
         of shot noise with intensity when shot noise dominates at low intensity
-    :param inten01: the pixel light intensities in this frame; shape is used to generate output
+    :param inten01: the pixel light intensities in this frame; shape is used to generate output (b,h,w)
     :param pos_thres_pre_prob: per pixel factor to generate more
         noise from pixels with lower ON threshold: self.pos_thres_nominal/self.pos_thres
     :param neg_thres_pre_prob: same for OFF
@@ -342,13 +339,13 @@ def generate_shot_noise(
     rand01 = torch.rand(
         size=inten01.shape,
         dtype=torch.float32,
-        device=inten01.device)  # draw_frame samples
+        device=inten01.device)  # draw_frame samples size batch x height x width
 
     # precompute all the shot noise cords, gets binary array size of chip
     shot_on_cord = torch.gt(
-        rand01, one_minus_shot_ON_prob_this_sample)
+        rand01, one_minus_shot_ON_prob_this_sample) # size batch x height x width
     shot_off_cord = torch.lt(
-        rand01, shot_OFF_prob_this_sample)
+        rand01, shot_OFF_prob_this_sample) #size batch x height x width
 
     return shot_on_cord, shot_off_cord
 

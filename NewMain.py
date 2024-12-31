@@ -120,12 +120,17 @@ while True:
     # Update current time
     current_time += delta_t
 
+    # printing some events to look at the output
+    if current_time > delta_t:
+        print('Now going to print some events for you (batch, time, x, y, polarity):')
+        print(new_events[0:4,:])
+
     # Log event statistics for the batch
     if new_events is not None:
         num_events = new_events.shape[0]
-        start_t = new_events[0, 0]
-        end_t = new_events[-1, 0]
-        event_time = (new_events[-1, 0]-new_events[0, 0])
+        start_t = new_events[0, 1]
+        end_t = new_events[-1, 1]
+        event_time = (new_events[-1, 1]-new_events[0, 1])
         event_rate_kevs = (num_events/delta_t)/1e3
         print("Number of Events: {}\n"
             "Duration: {}s\n"
