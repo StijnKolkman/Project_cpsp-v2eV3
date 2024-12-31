@@ -50,13 +50,14 @@ torch.set_grad_enabled(False)
 
 # Initialize resources and tensors
 caps        = []                                                                    #here the videos will be saved
-fps           = torch.zeros(batch_size,device=device)                               #tensor containing the fps of overy video
-num_of_frames = torch.zeros(batch_size, dtype=torch.int,device=device)              #tensor containing the number of frames of every video
-duration      = torch.zeros(batch_size,device=device)                               #tensor containing the duration of every video
-delta_t       = 0                                                                  #tensor containing the delta_t of every video
+fps           = 0                                                                   #fps of the videos, should be same for th videos
+num_of_frames = 0                                                                   #total number of frames. Should be the same for every video
+duration      = 0                                                                   # Duration of the videos, should be the same for every video
+delta_t       = 0                                                                   #The time between two frames. IS ASSUMED TO BE THE SAME FOR EVERY VIDEO
 current_time  = 0                                                                   #Current time is not a tensor anymore since we can assume that every video has the same size
 
 #loop over the video's in the input folder to get the frames and the information (fps, num_of_frames, duration, delta_t, current_time)
+#maybe add something here to check that the videos really have the same fps and delta_t
 print() 
 for i, video_file in enumerate(video_files): 
     print(f"Opening video {i+1}: {video_file}")
@@ -70,13 +71,13 @@ for i, video_file in enumerate(video_files):
     caps.append(cap)
 
     # Get the information
-    fps[i] = cap.get(cv2.CAP_PROP_FPS)
-    print("FPS: {}".format(fps[i]))
-    num_of_frames[i] = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print("Num of frames: {}".format(num_of_frames[i]))
-    duration[i] = num_of_frames[i]/fps[i]
-    print("Clip Duration: {}s".format(duration[i]))
-    delta_t = 1/fps[i]                                      #TODO: This is still done for every video but since all the frame have the same delta_t we should change this
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    print("FPS: {}".format(fps))
+    num_of_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print("Num of frames: {}".format(num_of_frames))
+    duration = num_of_frames/fps
+    print("Clip Duration: {}s".format(duration))
+    delta_t = 1/fps                                    
     print("Delta Frame Time: {}s".format(delta_t))
     print() 
 
@@ -85,7 +86,7 @@ idx        = 0                                              #Initialise counter
 N_frames   = 2                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
 ret        = torch.zeros(batch_size,device=device)          #Tensor that stores the return value of cap.read()
 
-# TODO: is this the way to make this tensor?
+
 max_height  = 720                                                                        # Example max height
 max_width   = 1280                                                                       # Example max width
 channels    = 3                                                                          # RGB
@@ -110,7 +111,6 @@ while True:
         break
 
     luma_frame_tensor = (frame_tensor * weights).sum(dim=-1)  # Compute luma frame
-
     # Generate events
     print("="*50)
     print(f"Processing batch {idx + 1} of in total {N_frames} batches")
