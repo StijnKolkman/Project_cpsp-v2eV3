@@ -373,13 +373,15 @@ class EventEmulator(object):
 
         atexit.register(self.cleanup)
 
-    def prepare_storage(self, n_frames, frame_ts):
+    def prepare_storage(self, n_frames, batch_size, frame_ts): #ADDED batch_size not sure if true
         # extra prepare for frame storage
         if self.dvs_h5:
             # for frame
             self.frame_h5_dataset = self.dvs_h5.create_dataset(
-                name="frame",
-                shape=(n_frames, self.output_height, self.output_width),
+                #ADDED BATCH SIZE
+                name="frame", 
+                shape=(n_frames, batch_size, self.output_height, self.output_width),
+                #shape=(n_frames, self.output_height, self.output_width),
                 dtype="uint8",
                 compression="gzip")
 
@@ -643,10 +645,19 @@ class EventEmulator(object):
 
         # like a DAVIS, write frame into the file if it's HDF5 # TODO: currently turnt off
         # If this is turned on the output events will be given hdf5 events
+
+        #Changed to take batch into account
+        batch_size=new_frame[0]
         if self.frame_h5_dataset is not None:
+            for batch_idx in range(new_frame.shape[0]):
+                self.frame_h5_dataset[self.frame_counter, batch_idx] = \
+                new_frame[batch_idx].astype(np.uint8) #acess cell coresponding to batch ID
+
+
+        #if self.frame_h5_dataset is not None:
             # save frame data
-            self.frame_h5_dataset[self.frame_counter] = \
-                new_frame.astype(np.uint8)
+           # self.frame_h5_dataset[self.frame_counter] = \
+            #    new_frame.astype(np.uint8)
 
         # update frame counter
         self.frame_counter += 1
