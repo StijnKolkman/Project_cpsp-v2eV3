@@ -54,16 +54,14 @@ class EventEmulator(object):
     SINGLE_PIXEL_STATES_FILENAME='pixel-states.dat'
     SINGLE_PIXEL_MAX_SAMPLES=10000
 
-    # scidvs adaptation
+    # scidvs_dvdt --> Ready for batch processing
     def scidvs_dvdt(self, v: torch.Tensor, tau: Optional[torch.Tensor] = None) -> torch.Tensor:
         """
 
         Parameters
         ----------
-            the input 'voltage',
-        v:Tensor
-            actually log intensity in base e units
-        tau:Optional[Tensor]
+            the input 'voltage', v:Tensor
+            actually log intensity in base e units tau:Optional[Tensor]
             if None, tau is set internally
 
         Returns
@@ -83,6 +81,7 @@ class EventEmulator(object):
     SCIDVS_TAU_S: float = .01  # small signal time constant in seconds
     SCIDVS_TAU_COV: float = 0.5  # each pixel has its own time constant. The tau's have log normal distribution with this sigma
 
+    # Initialise function --> Ready for batch processing
     def __init__(
             self,
             pos_thres: float = 0.2,
@@ -401,6 +400,7 @@ class EventEmulator(object):
             self.frame_ts_dataset = None
             self.frame_ev_idx_dataset = None
 
+    # Function for cleanup after the batch processing --> ready for batch processing 
     def cleanup(self):
         if len(self.cs_steps_taken) > 1:
             mean_staps = np.mean(self.cs_steps_taken)
@@ -430,6 +430,7 @@ class EventEmulator(object):
         if not self.record_single_pixel_states is None:
             self.save_recorded_single_pixel_states()
 
+    # Saving the pixel states to a file --> ready for batch processing, but need adaption when called in generate events
     def save_recorded_single_pixel_states(self):
         try:
             with open(self.SINGLE_PIXEL_STATES_FILENAME,'wb') as outfile:
@@ -438,12 +439,14 @@ class EventEmulator(object):
         except Exception as e:
             logger.error(f'could not save pickled pixel states, got {e}')
 
+    # Initialising the parameters, --> Ready for batch processing
     def _init(self, first_frame_linear):
+
         """
 
         Parameters:
         ----------
-        first_frame_linear: np.ndarray
+        first_frame_linear: Torch tensor (batch_size, hight, width)
             the first frame, used to initialize data structures
 
         Returns:
@@ -451,6 +454,7 @@ class EventEmulator(object):
         -------
 
         """
+        print('The size of first frame linear should be (batch, height, width) and it is ' + str(first_frame_linear.shape))
         logger.debug(
             'initializing random temporal contrast thresholds '
             'from from base frame')
@@ -512,8 +516,9 @@ class EventEmulator(object):
                 first_frame_linear.shape, dtype=torch.float32,
                 device=self.device) - self.refractory_period_s
             print('size of timestamp_mem is: ', self.timestamp_mem.shape)
-
-    def set_dvs_params(self, model: str):
+    
+    # setting the parameters for the DVS camera simulator --> ready for batch processing
+    def set_dvs_params(self, model: str): 
         if model == 'clean':
             self.pos_thres = 0.2
             self.neg_thres = 0.2
@@ -558,6 +563,7 @@ class EventEmulator(object):
             self.leak_rate_hz, self.shot_noise_rate_hz,
             self.refractory_period_s))
 
+    # Reset all the parameters of the simulator --> ready for batch processin 
     def reset(self):
         '''resets so that next use will reinitialize the base frame
         '''
@@ -566,20 +572,21 @@ class EventEmulator(object):
         self.num_events_off = 0
 
         # add names of new states to potentially show with --show_model_states all
-        self.new_frame: Optional[np.ndarray] = None # new frame that comes in [height, width]
-        self.log_new_frame: Optional[np.ndarray] = None #  [height, width]
-        self.lp_log_frame: Optional[np.ndarray] = None  # lowpass stage 0
-        self.lp_log_frame: Optional[np.ndarray] = None  # stage 1
-        self.cs_surround_frame: Optional[np.ndarray] = None
-        self.c_minus_s_frame: Optional[np.ndarray] = None
-        self.base_log_frame: Optional[np.ndarray] = None # memorized log intensities at change detector
-        self.diff_frame: Optional[np.ndarray] = None  # [height, width]
-        self.scidvs_highpass: Optional[np.ndarray] = None
-        self.scidvs_previous_photo: Optional[np.ndarray] = None
-        self.scidvs_tau_arr: Optional[np.ndarray] = None
+        self.new_frame: Optional[torch.Tensor] = None # new frame that comes in [height, width]
+        self.log_new_frame: Optional[torch.Tensor] = None #  [height, width]
+        self.lp_log_frame: Optional[torch.Tensor] = None  # lowpass stage 0
+        self.lp_log_frame: Optional[torch.Tensor] = None  # stage 1
+        self.cs_surround_frame: Optional[torch.Tensor] = None
+        self.c_minus_s_frame: Optional[torch.Tensor] = None
+        self.base_log_frame: Optional[torch.Tensor] = None # memorized log intensities at change detector
+        self.diff_frame: Optional[torch.Tensor] = None  # [height, width]
+        self.scidvs_highpass: Optional[torch.Tensor] = None
+        self.scidvs_previous_photo: Optional[torch.Tensor] = None
+        self.scidvs_tau_arr: Optional[torch.Tensor] = None
 
         self.frame_counter = 0
 
+    # Show a certain frame. --> NOT READY for batch processing
     def _show(self, inp: torch.Tensor, name: str):
         """
         Shows the ndarray in window, and save frame to avi file if self.save_dvs_model_state==True.
@@ -625,7 +632,7 @@ class EventEmulator(object):
         Parameters
         ----------
         new_frame: np.ndarray
-            [height, width], NOTE y is first dimension, like in matlab the column, x is 2nd dimension, i.e. row.
+            [height, width], NOTE y is first dimension,  like in matlab the column, x is 2nd dimension, i.e. row.
         t_frame: float
             timestamp of new frame in float seconds
 
@@ -1076,12 +1083,13 @@ class EventEmulator(object):
         else:
             return None
 
-    def get_event_list_from_coords(self, pos_event_xy, neg_event_xy, ts): #works with batch processing now
+    # Makes the event list based on the given coordinates --> works with batch processing
+    def get_event_list_from_coords(self, pos_event_xy, neg_event_xy, ts):
         """ Gets event list from ON and OFF event coordinate lists.
         :param pos_event_xy: Tensor[3,n] where n is number of ON events, [0,n] are the batch numbers, [1,n] are y addresses and [2,n] are x addresses
         :param neg_event_xy: Tensor[3,n] where n is number of ON events, [0,n] are the batch numbers, [1,n] are y addresses and [2,n] are x addresses
         :param ts: the timestamp given to all events tensor [batch_size, 1]
-        :returns: Tensor[n+m,4] of AER [b, t, x, y, p]
+        :returns: Tensor[n,5] of AER [b, t, x, y, p]
         """
         # update event stats
         num_pos_events = pos_event_xy[1].shape[0]
@@ -1105,10 +1113,10 @@ class EventEmulator(object):
             events_curr_iter[:, 1] = ts[1]  # put all timestamps into events
 
             # pos_event cords
-            # events_curr_iter is 2d array [N,4] with 2nd dimension [t,x,y,p]. N is the number of events from this frame
+            # events_curr_iter is 2d array [N,5] with 2nd dimension [b,t,x,y,p]. N is the number of events from this frame
             # we replace the x's (element 1) and y's (element 2) with the on event coordinates in the first num_pos_coord entries of events_curr_iter
             events_curr_iter[:num_pos_events, 0] = pos_event_xy[0] # tensor 0 of pos_event_xy is the batch number
-            events_curr_iter[:num_pos_events, 2] = pos_event_xy[2]  # tensor 2 of pos_event_xy is x addresses
+            events_curr_iter[:num_pos_events, 2] = pos_event_xy[2]  # tensor 2 of pos_event_xy is x addresses (1 is the time, see above)
             events_curr_iter[:num_pos_events, 3] = pos_event_xy[1]  # tensor 1 of pos_event_xy is y addresses
 
             # neg event cords
@@ -1120,7 +1128,21 @@ class EventEmulator(object):
             print('first event in events_curr_iter is: (batch, time, x, y, p):', events_curr_iter[1,:])
         return events_curr_iter
 
+    # Works with batch processing
     def _update_csdvs(self, delta_time):
+        '''
+        Parameters
+        ----------
+        delta_time : float
+            The time interval for which the state update is calculated. This value is used to determine
+            how many simulation steps are needed based on the time constants of the system.
+
+        Returns
+        -------
+        None
+            The function updates the internal state `cs_surround_frame` in place and does not return any value.
+        '''
+
         if self.cs_surround_frame is None:
             self.cs_surround_frame = self.lp_log_frame.clone().detach()  # detach makes true clone decoupled from torch computation tree
         else:
@@ -1161,24 +1183,36 @@ class EventEmulator(object):
                     f'CSDVS update alpha (of IIR update) is too large; simulation will be inaccurate: '
                     f'alpha_p={alpha_p:.3f} alpha_h={alpha_h:.3f}')
                 self.cs_alpha_warning_printed = True
-            p_ten = torch.unsqueeze(torch.unsqueeze(self.lp_log_frame, 0), 0)
-            h_ten = torch.unsqueeze(torch.unsqueeze(self.cs_surround_frame, 0), 0)
+            p_ten = torch.unsqueeze(torch.unsqueeze(self.lp_log_frame, 0), 0) # size (batch, height,width)
+            h_ten = torch.unsqueeze(torch.unsqueeze(self.cs_surround_frame, 0), 0) # size (batch, height,width)
             padding = torch.nn.ReplicationPad2d(1)
             max_change = 2 * EventEmulator.MAX_CHANGE_TO_TERMINATE_EULER_SURROUND_STEPPING
             steps = 0
             while steps < num_steps and max_change > EventEmulator.MAX_CHANGE_TO_TERMINATE_EULER_SURROUND_STEPPING:
                 if not self.show_dvs_model_state is None and steps % 100 == 0:
                     cv2.pollKey()  # allow movement of windows and resizing
-                diff = p_ten - h_ten
+                diff = p_ten - h_ten # size is batch,height,width
                 p_term = alpha_p * diff
                 # For the conv2d, unfortunately the zero padding pulls down the border pixels,
                 # so we use replication padding to reduce this effect on border.
                 # TODO check if possible to implement some form of open circuit resistor termination condition by correct padding
-                h_conv = torch.conv2d(padding(h_ten.float()), self.cs_k_hh.float())
+                # Assuming h_ten has shape (batch_size, height, width)
+
+                # Add a channel dimension (assuming single-channel images)
+                h_ten_with_channels = h_ten.unsqueeze(1)  # Now shape will be (batch_size, 1, height, width)
+                # Apply padding
+                padded_h_ten = padding(h_ten_with_channels.float())  # Now shape will be (batch_size, 1, height + 2, width + 2)
+                # Perform the convolution
+                h_conv = torch.conv2d(padded_h_ten, self.cs_k_hh.float()) # shape will be (batch_size,1,height,width)
+                h_conv = torch.squeeze(h_conv)  # This will change shape to (batch_size, output_height, output_width)
+
+                # h_conv = torch.conv2d(padding(h_ten.float()), self.cs_k_hh.float()) Old way, before batch processing
+
                 h_term = alpha_h * h_conv
                 change_ten = p_term + h_term  # change_ten is the change in the diffuser voltage
                 max_change = torch.max(
                     torch.abs(change_ten)).item()  # find the maximum absolute change in any diffuser pixel
+                # NOTE: now we stop the euler loop is the max change for one of the frames in the batch is bigger then the threshold, maybe we should do this individually?
                 h_ten += change_ten
                 steps += 1
 

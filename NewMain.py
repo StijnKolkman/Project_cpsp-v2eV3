@@ -99,10 +99,10 @@ while True:
     all_ret_false = True  # Flag to determine if all videos are done
 
     for i, cap in enumerate(caps):
-        ret, frame_read = cap.read()
+        ret, frame_read = cap.read() 
         if ret:
             all_ret_false = False
-            frame_tensor[i] = torch.from_numpy(frame_read).float().to(device)  # Convert frame to tensor
+            frame_tensor[i] = torch.from_numpy(frame_read).float().to(device)  # Convert frame (np array) to tensor
         else:
             # Append a zero tensor if video is finished
             frame_tensor[i] = torch.zeros((max_height, max_width), device=device)
