@@ -587,6 +587,7 @@ class EventEmulator(object):
         self.frame_counter = 0
 
     # Show a certain frame. --> NOT READY for batch processing
+    '''
     def _show(self, inp: torch.Tensor, name: str):
         """
         Shows the ndarray in window, and save frame to avi file if self.save_dvs_model_state==True.
@@ -625,6 +626,64 @@ class EventEmulator(object):
             self.video_writers[name].write(
                 cv2.cvtColor((img * 255).astype(np.uint8),
                              cv2.COLOR_GRAY2BGR))
+    '''
+
+    def _show(self, inp: torch.Tensor, name: str):
+        """
+        Shows a batch of images in separate windows and saves frames to AVI files if self.save_dvs_model_state == True.
+        The displayed images are normalized according to their type (grayscale, log, or signed log).
+
+        Parameters
+        ----------
+        inp: torch.Tensor
+            The batch of images, expected shape (batch_size, height, width).
+        name: str
+            Base label for the windows.
+
+        Returns
+        -------
+        None
+        """
+        if inp.dim() != 3:
+            raise ValueError("Input tensor must have 3 dimensions: (batch_size, height, width).")
+
+        batch_size, height, width = inp.shape
+
+        # Loop through each image in the batch
+        for idx in range(batch_size):
+            img = np.array(inp[idx].cpu().data.numpy())
+            (min_val, max_val) = EventEmulator.MODEL_STATES[name]
+
+            # Normalize the image
+            img = (img - min_val) / (max_val - min_val)
+
+            # Create unique window name for each image
+            window_name = f"{name}_img{idx}"
+
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            if window_name not in self.show_list:
+                d = len(self.show_list) * 200
+                cv2.moveWindow(window_name, int(self.screen_width / 8 + d), int(self.screen_height / 8 + d / 2))
+                self.show_list.append(window_name)
+                if self.save_dvs_model_state: 
+                    fn = os.path.join(self.output_folder, window_name + '.avi')
+                    vw = video_writer(fn, self.output_height, self.output_width)
+                    self.video_writers[window_name] = vw
+
+            # Add text to the image
+            cv2.putText(img, f'fr:{self.frame_counter} t:{self.t_previous:.4f}s', org=(0, self.output_height),
+                        fontScale=1.3, color=(0, 0, 0), fontFace=cv2.FONT_HERSHEY_PLAIN, thickness=1)
+            cv2.putText(img, f'fr:{self.frame_counter} t:{self.t_previous:.4f}s', org=(1, self.output_height - 1),
+                        fontScale=1.3, color=(255, 255, 255), fontFace=cv2.FONT_HERSHEY_PLAIN, thickness=1)
+
+            # Show the image
+            cv2.imshow(window_name, img)
+
+            # Save the frame if required
+            if self.save_dvs_model_state:
+                self.video_writers[window_name].write(
+                    cv2.cvtColor((img * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+                )
 
     def generate_events(self, new_frame, t_frame):
         """Compute events in new frame.
@@ -745,7 +804,7 @@ class EventEmulator(object):
         # R_l*Theta_on=dI/dt, so
         # dI=R_l*Theta_on*dt
 
-        #TODO: look into, currently turned off
+        
         if self.leak_rate_hz > 0:
             self.base_log_frame = subtract_leak_current(
                 base_log_frame=self.base_log_frame,
@@ -779,7 +838,7 @@ class EventEmulator(object):
                         self.dont_show_list.append(s)
                     else:
                         self._show(f, s)  # show the frame f with name s
-            k = cv2.waitKey(30)
+            k = cv2.waitKey(0)
             if k == 27 or k == ord('x'):
                 v2e_quit()
 

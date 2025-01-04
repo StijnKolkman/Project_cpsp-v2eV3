@@ -54,8 +54,17 @@ emulatorNew = EventEmulator(
     # If True, photoreceptor noise is added to the simulation
     photoreceptor_noise = False,
 
-    #some kind parameter, ready the document of v2e to know more. But can be turned on by giving it a value, otherwise give value None
-    cs_lambda_pixels    = 0.0000000000000000001
+    #CSDVS --> This will enable csdvs, this function currently does not work with batch processing, so keep at None
+    cs_lambda_pixels    = None,
+
+    #scidvs
+    scidvs              = False,
+
+    # Parameter to show an image and to save it to an avi file. If show_dvs_model_state is enabled it will output the frames and will wait for a key press before it continues
+    show_dvs_model_state = ['new_frame', 'lp_log_frame','diff_frame'], # options:['all','new_frame', 'log_new_frame','lp_log_frame', 'scidvs_highpass', 'photoreceptor_noise_arr', 'cs_surround_frame','c_minus_s_frame', 'base_log_frame', 'diff_frame'])
+    output_height       =200, #output height of the window
+    output_width        =200,
+    save_dvs_model_state= True
 )
 # **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
 torch.set_grad_enabled(False)
