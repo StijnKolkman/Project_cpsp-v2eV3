@@ -320,8 +320,8 @@ class EventEmulator(object):
                 # for events
                 self.dvs_h5_dataset = self.dvs_h5.create_dataset(
                     name="events",
-                    shape=(0, 4),
-                    maxshape=(None, 4),
+                    shape=(0, 5),
+                    maxshape=(None, 5),
                     dtype="uint32",
                     compression="gzip")
 
@@ -454,7 +454,7 @@ class EventEmulator(object):
         -------
 
         """
-        print('The size of first frame linear should be (batch, height, width) and it is ' + str(first_frame_linear.shape))
+       #print('The size of first frame linear should be (batch, height, width) and it is ' + str(first_frame_linear.shape))
         logger.debug(
             'initializing random temporal contrast thresholds '
             'from from base frame')
@@ -631,8 +631,8 @@ class EventEmulator(object):
 
         Parameters
         ----------
-        new_frame: np.ndarray
-            [height, width], NOTE y is first dimension,  like in matlab the column, x is 2nd dimension, i.e. row.
+        new_frame: torch tensor 
+            [batch, height, width], NOTE y is first dimension,  like in matlab the column, x is 2nd dimension, i.e. row.
         t_frame: float
             timestamp of new frame in float seconds
 
@@ -643,12 +643,11 @@ class EventEmulator(object):
             NOTE x,y, NOT y,x.
         """
 
-        # base_frame: the change detector input,
-        #              stores memorized brightness values
+        # base_frame: the change detector input,stores memorized brightness values
         # new_frame: the new intensity frame input
         # log_frame: the lowpass filtered brightness values
 
-        # like a DAVIS, write frame into the file if it's HDF5 # TODO: currently turnt off
+        # like a DAVIS, write frame into the file if it's HDF5 
         # If this is turned on the output events will be given hdf5 events
         if self.frame_h5_dataset is not None:
             # save frame data
@@ -667,9 +666,8 @@ class EventEmulator(object):
         delta_time = t_frame - self.t_previous
         # logger.debug('delta_time={}'.format(delta_time))
         
-        # TODO: look into this, currently turned off
         if self.log_input and new_frame.dtype != np.float32:
-            logger.warning('log_frame is True but input frome is not np.float32 datatype')
+            logger.warning('log_frame is True but input frame is not np.float32 datatype')
 
         # convert into torch tensor
         self.new_frame = new_frame.to(self.device) # input is already a torch tensor so no transformation here
@@ -682,7 +680,7 @@ class EventEmulator(object):
             # Time constant of the filter is proportional to
             # the intensity value (with offset to deal with DN=0)
             # limit max time constant to ~1/10 of white intensity level
-            inten01 = torch.zeros(self.batch_size,device=self.device) 
+            #inten01 = torch.zeros(self.batch_size,device=self.device) --> old code
             inten01 = rescale_intensity_frame(self.new_frame.clone().detach())  # TODO assumes 8 bit
 
         # Apply nonlinear lowpass filter here.
@@ -697,16 +695,15 @@ class EventEmulator(object):
             self.photoreceptor_noise_arr = torch.zeros_like(self.lp_log_frame, device=self.device)
 
         self.lp_log_frame = low_pass_filter( #Now works with batches
-            log_new_frame=self.log_new_frame, #This is the current batch with frames, size = b,w,h
-            lp_log_frame=self.lp_log_frame,   #This is the old batch with frames, size = b,w,h
+            log_new_frame=self.log_new_frame, #This is the current batch with frames, size = b,h,w
+            lp_log_frame=self.lp_log_frame,   #This is the old batch with frames, size = b,h,w
             inten01=inten01, 
             delta_time=delta_time,
-            cutoff_hz=self.cutoff_hz).to(self.device)
+            cutoff_hz=self.cutoff_hz)
 
         # add photoreceptor noise if we are using photoreceptor noise to create shot noise
-        #TODO: LOOK INTO THIS, CURRENTLY THIS OPTION IS TURNED OFF!!
         if self.photoreceptor_noise and not self.base_log_frame is None:  # only add noise after the initial values are memorized and we can properly lowpass filter the noise
-            print('Now starting the photoreceptor_noise function which is not yet ready for batch processing!')
+            #print('Now starting the photoreceptor_noise function which is not yet ready for batch processing!')
             self.photoreceptor_noise_vrms = compute_photoreceptor_noise_voltage(
                 shot_noise_rate_hz=self.shot_noise_rate_hz, f3db=self.cutoff_hz, sample_rate_hz=1 / delta_time,
                 pos_thr=self.pos_thres_nominal, neg_thr=self.neg_thres_nominal, sigma_thr=self.sigma_thres)
@@ -714,14 +711,12 @@ class EventEmulator(object):
                                                                 device=self.device)
             self.photoreceptor_noise_arr = low_pass_filter(noise, self.photoreceptor_noise_arr, None, delta_time,
                                                            self.cutoff_hz)
-            self.photoreceptor_noise_samples.append(
-                self.photoreceptor_noise_arr[0, 0].cpu().item())  # todo debugging can remove
+            #self.photoreceptor_noise_samples.append(
+            #    self.photoreceptor_noise_arr[0, 0].cpu().item())  # todo debugging can remove
             # std=np.std(self.photoreceptor_noise_samples)
 
         # surround computations by time stepping the diffuser
-        #TODO: look into this function, currently turned off 
         if self.csdvs_enabled:
-            print('Now starting the update_csdvs function which is not yet ready for batch processing!')
             self._update_csdvs(delta_time)
 
         if self.base_log_frame is None:
@@ -735,7 +730,6 @@ class EventEmulator(object):
 
         #TODO: look into this, currently is turned off
         if self.scidvs:
-            print('Now starting scidvs which is not yet ready for batch processing!')
             if self.scidvs_highpass is None:
                 self.scidvs_highpass = torch.zeros_like(self.lp_log_frame)
                 self.scidvs_previous_photo = torch.clone(self.lp_log_frame).detach()
@@ -753,7 +747,6 @@ class EventEmulator(object):
 
         #TODO: look into, currently turned off
         if self.leak_rate_hz > 0:
-            print('Now starting substract_leak_current which is not yet ready for batch processing!')
             self.base_log_frame = subtract_leak_current(
                 base_log_frame=self.base_log_frame,
                 leak_rate_hz=self.leak_rate_hz,
@@ -771,14 +764,13 @@ class EventEmulator(object):
 
         if not self.csdvs_enabled:
             self.diff_frame = photoreceptor + self.photoreceptor_noise_arr - self.base_log_frame
-            n, h, w = self.diff_frame.size()
-            print(f"diff_frame has size {n}x{h}x{w}")
+            #n, h, w = self.diff_frame.size()
+            #print(f"diff_frame has size {n}x{h}x{w}")
         else:
             self.c_minus_s_frame = photoreceptor + self.photoreceptor_noise_arr - self.cs_surround_frame
             self.diff_frame = self.c_minus_s_frame - self.base_log_frame
 
         if not self.show_dvs_model_state is None:
-            print('Now using show_dvs_model_state, however this is not yet ready for batch processing')
             for s in self.show_dvs_model_state:
                 if not s in self.dont_show_list:
                     f = getattr(self, s, None)
@@ -794,8 +786,8 @@ class EventEmulator(object):
         # generate event map
         # print(f'\ndiff_frame max={torch.max(self.diff_frame)} pos_thres mean={torch.mean(self.pos_thres)} expect {int(torch.max(self.diff_frame)/torch.mean(self.pos_thres))} max events')
         pos_evts_frame, neg_evts_frame = compute_event_map(self.diff_frame, self.pos_thres, self.neg_thres) # size (Batch, x x). contains the amount of events
-        print(pos_evts_frame)
-        print("Max:", pos_evts_frame.max().item())
+        #print(pos_evts_frame)
+        #print("Max:", pos_evts_frame.max().item())
 
        # Get the maximum number of events in any pixel across the batch for both positive and negative events
         max_pos_events, _ = pos_evts_frame.view(pos_evts_frame.size(0), -1).max(dim=1)  # Shape: (batch_size,)
@@ -836,7 +828,7 @@ class EventEmulator(object):
             steps=min_ts_steps, dtype=torch.float32, device=self.device)
         ts = ts.unsqueeze(0).repeat(self.batch_size, 1)  # size = (batch_size, steps) --> THIS IS WRONG< NEED TO CHANGE!!!!
 
-        print('The size of ts is: ', ts.shape)
+        #print('The size of ts is: ', ts.shape)
         # print(f'ts={ts}')
 
         # record final events update
@@ -845,8 +837,8 @@ class EventEmulator(object):
         final_neg_evts_frame = torch.zeros(
             neg_evts_frame.shape, dtype=torch.int32, device=self.device)
         
-        print('The shape of final_pos_evts_frame is: ',final_pos_evts_frame.shape)
-        print('The shape of final_neg_evts_frame is: ',final_neg_evts_frame.shape)
+        #print('The shape of final_pos_evts_frame is: ',final_pos_evts_frame.shape)
+        #print('The shape of final_neg_evts_frame is: ',final_neg_evts_frame.shape)
 
         if max_num_events_any_pixel == 0 and self.no_events_warning_count<100:
             logger.warning(f'no signal events generated for frame #{self.frame_counter:,} at t={t_frame:.4f}s')
@@ -865,8 +857,8 @@ class EventEmulator(object):
                 # This parts checks per pixel if the amount of events is bigger of the same as the current iteration
                 pos_cord = (pos_evts_frame >= i + 1) #the bool array of pixels containing events in this iteration
                 neg_cord = (neg_evts_frame >= i + 1) # --> shape is (Batch Heigth Width)
-                print('The shape of pos_cord is: ',pos_cord.shape)
-                print('The shape of neg_cord is: ',neg_cord.shape)
+                #print('The shape of pos_cord is: ',pos_cord.shape)
+                #print('The shape of neg_cord is: ',neg_cord.shape)
 
                 #NOTE EVERYTHING BELOW HERE IS UNCHANGED
                 # filter events with refractory_period
@@ -878,23 +870,23 @@ class EventEmulator(object):
                 # is high enough so that dt is less than one refractory period.
                 if self.refractory_period_s > ts_step:
                     ts_i = ts[:, i].view(self.batch_size, 1, 1)
-                    print('Size of ts_i_expanded is: ', ts_i.shape)
-                    print(ts_i)
+                   # print('Size of ts_i_expanded is: ', ts_i.shape)
+                    #print(ts_i)
 
                     pos_time_since_last_spike = (
                             pos_cord * ts_i - self.timestamp_mem)
                     neg_time_since_last_spike = (
                             neg_cord * ts_i - self.timestamp_mem)
-                    print('Size of pos_time_since_last_spike is: ', pos_time_since_last_spike.shape)
-                    print(pos_time_since_last_spike)
+                    #print('Size of pos_time_since_last_spike is: ', pos_time_since_last_spike.shape)
+                    #print(pos_time_since_last_spike)
 
                     # filter the events
                     pos_cord = (
                             pos_time_since_last_spike > self.refractory_period_s)
                     neg_cord = (
                             neg_time_since_last_spike > self.refractory_period_s)
-                    print('pos_cord', pos_cord.shape)
-                    print(pos_cord)
+                    #print('pos_cord', pos_cord.shape)
+                    #print(pos_cord)
 
                     # assign new history
                     self.timestamp_mem = torch.where(
@@ -918,9 +910,9 @@ class EventEmulator(object):
                 #   Tensor 2 is list of x addresses
                 pos_event_xy = pos_cord.nonzero(as_tuple=True)
                 neg_event_xy = neg_cord.nonzero(as_tuple=True)
-                print('The size of the events tensor is: ',pos_event_xy[0].shape,'The events are in batches: ',pos_event_xy[0])
-                print('The size of the Y tensor is: ',pos_event_xy[1].shape,'Y adresses of the events: ', pos_event_xy[1])
-                print('The size of the X tensor is: ',pos_event_xy[2].shape,' X adresses of the events: ', pos_event_xy[2])
+                #print('The size of the events tensor is: ',pos_event_xy[0].shape,'The events are in batches: ',pos_event_xy[0])
+                #print('The size of the Y tensor is: ',pos_event_xy[1].shape,'Y adresses of the events: ', pos_event_xy[1])
+                #print('The size of the X tensor is: ',pos_event_xy[2].shape,' X adresses of the events: ', pos_event_xy[2])
 
                 events_curr_iter = self.get_event_list_from_coords(pos_event_xy, neg_event_xy, ts_i)
 
@@ -1015,7 +1007,7 @@ class EventEmulator(object):
                 # convert data to uint32 (microsecs) format
                 temp_events = np.array(events, dtype=np.float32)
                 temp_events[:, 1] = temp_events[:, 1] * 1e6
-                temp_events[temp_events[:, 4] == -1, 3] = 0
+                temp_events[temp_events[:, 4] == -1, 4] = 0
                 temp_events = temp_events.astype(np.uint32)
 
                 # save events
@@ -1125,7 +1117,7 @@ class EventEmulator(object):
             events_curr_iter[num_pos_events:, 2] = neg_event_xy[2]
             events_curr_iter[num_pos_events:, 3] = neg_event_xy[1]
             events_curr_iter[num_pos_events:, 4] = -1  # neg events polarity is -1 so flip the signs
-            print('first event in events_curr_iter is: (batch, time, x, y, p):', events_curr_iter[1,:])
+            #print('first event in events_curr_iter is: (batch, time, x, y, p):', events_curr_iter[1,:])
         return events_curr_iter
 
     # Works with batch processing
@@ -1183,8 +1175,8 @@ class EventEmulator(object):
                     f'CSDVS update alpha (of IIR update) is too large; simulation will be inaccurate: '
                     f'alpha_p={alpha_p:.3f} alpha_h={alpha_h:.3f}')
                 self.cs_alpha_warning_printed = True
-            p_ten = torch.unsqueeze(torch.unsqueeze(self.lp_log_frame, 0), 0) # size (batch, height,width)
-            h_ten = torch.unsqueeze(torch.unsqueeze(self.cs_surround_frame, 0), 0) # size (batch, height,width)
+            p_ten = torch.unsqueeze(self.lp_log_frame, 1) # size (batch, height,width)
+            h_ten = torch.unsqueeze(self.cs_surround_frame, 1) # size (batch, height,width)
             padding = torch.nn.ReplicationPad2d(1)
             max_change = 2 * EventEmulator.MAX_CHANGE_TO_TERMINATE_EULER_SURROUND_STEPPING
             steps = 0
@@ -1192,6 +1184,7 @@ class EventEmulator(object):
                 if not self.show_dvs_model_state is None and steps % 100 == 0:
                     cv2.pollKey()  # allow movement of windows and resizing
                 diff = p_ten - h_ten # size is batch,height,width
+                print(p_ten.shape)
                 p_term = alpha_p * diff
                 # For the conv2d, unfortunately the zero padding pulls down the border pixels,
                 # so we use replication padding to reduce this effect on border.
@@ -1199,16 +1192,19 @@ class EventEmulator(object):
                 # Assuming h_ten has shape (batch_size, height, width)
 
                 # Add a channel dimension (assuming single-channel images)
-                h_ten_with_channels = h_ten.unsqueeze(1)  # Now shape will be (batch_size, 1, height, width)
+                h_ten_with_channels = h_ten  # Now shape will be (batch_size, 1, height, width)
+                print(h_ten_with_channels.shape)
                 # Apply padding
                 padded_h_ten = padding(h_ten_with_channels.float())  # Now shape will be (batch_size, 1, height + 2, width + 2)
                 # Perform the convolution
                 h_conv = torch.conv2d(padded_h_ten, self.cs_k_hh.float()) # shape will be (batch_size,1,height,width)
-                h_conv = torch.squeeze(h_conv)  # This will change shape to (batch_size, output_height, output_width)
+                #h_conv = torch.squeeze(h_conv)  # This will change shape to (batch_size, output_height, output_width)
 
                 # h_conv = torch.conv2d(padding(h_ten.float()), self.cs_k_hh.float()) Old way, before batch processing
 
                 h_term = alpha_h * h_conv
+                print(p_term.shape)
+                print(h_term.shape)
                 change_ten = p_term + h_term  # change_ten is the change in the diffuser voltage
                 max_change = torch.max(
                     torch.abs(change_ten)).item()  # find the maximum absolute change in any diffuser pixel
@@ -1217,6 +1213,7 @@ class EventEmulator(object):
                 steps += 1
 
             self.cs_steps_taken.append(steps)
+            print(torch.squeeze(h_ten).shape)
             self.cs_surround_frame = torch.squeeze(h_ten)
 
 ''' NOT NEEDED if run from NewMain. from old not made for batch, see NewMain for batch implementiaon 

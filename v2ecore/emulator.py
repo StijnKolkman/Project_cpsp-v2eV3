@@ -949,7 +949,7 @@ class EventEmulator(object):
                 logger.warning(f'nonmonotonic timestamp(s) at indices {idx}')
             if signnoise_label is not None:
                 signnoise_label=signnoise_label.cpu().numpy()
-            if self.dvs_h5 is not None:
+            if self.dvs_h5 is not None:  
                 # convert data to uint32 (microsecs) format
                 temp_events = np.array(events, dtype=np.float32)
                 temp_events[:, 0] = temp_events[:, 0] * 1e6

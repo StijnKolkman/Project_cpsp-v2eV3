@@ -34,17 +34,29 @@ if batch_size == 0:
 
 # define a emulator (set the settings of the emulator)
 emulatorNew = EventEmulator(
-    pos_thres          = 0.01,
-    neg_thres          = 0.01,
-    sigma_thres        = 0.03,
-    cutoff_hz          = 1,
-    leak_rate_hz       = 0,  #--> turned it to 0, but it was originaly 1 
-    shot_noise_rate_hz = 10,
-    batch_size         = batch_size,
-    device             = device,
-    refractory_period_s= 0.01
-)
+    pos_thres           = 0.01,
+    neg_thres           = 0.01,
+    sigma_thres         = 0.03,
+    cutoff_hz           = 1,
+    leak_rate_hz        = 1, 
+    shot_noise_rate_hz  = 1,
+    batch_size          = batch_size,
+    device              = device,
+    refractory_period_s = 0.01,
 
+    # having this will allow H5 output
+    output_folder       = 'output/', 
+    dvs_h5              = 'eventsH5',
+
+    # True when the input is in hdr format (then it will skip the linlog conversion step)
+    hdr                 = False,
+
+    # If True, photoreceptor noise is added to the simulation
+    photoreceptor_noise = False,
+
+    #some kind parameter, ready the document of v2e to know more. But can be turned on by giving it a value, otherwise give value None
+    cs_lambda_pixels    = 0.0000000000000000001
+)
 # **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
 torch.set_grad_enabled(False)
 
@@ -103,14 +115,16 @@ while True:
         if ret:
             all_ret_false = False
             frame_tensor[i] = torch.from_numpy(frame_read).float().to(device)  # Convert frame (np array) to tensor
+            print("Size of frame_tensor[{}]: {}".format(i, frame_tensor[i].size()))
         else:
             # Append a zero tensor if video is finished
-            frame_tensor[i] = torch.zeros((max_height, max_width), device=device)
+            frame_tensor[i] = torch.zeros((max_height, max_width), device=device) #Not really needed anymore since it is assumed that all files will have the same number of frames
 
     if all_ret_false:  # Stop if all videos are done
         break
-
+    print("Size of frame_tensor: {}".format(frame_tensor.size()))
     luma_frame_tensor = (frame_tensor * weights).sum(dim=-1)  # Compute luma frame
+    print("Size of luma_frame_tensor: {}".format(luma_frame_tensor.size()))
     # Generate events
     print("="*50)
     print(f"Processing batch {idx + 1} of in total {N_frames} batches")

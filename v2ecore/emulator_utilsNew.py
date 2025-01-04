@@ -69,8 +69,8 @@ def low_pass_filter( #this function is ready for batch processing
     # Returns
         new_lp_log_frame: updated low-pass filtered frame.
     """
-    print(' ')
-    print('Now starting the low_pass_filter...')
+    #print(' ')
+    #print('Now starting the low_pass_filter...')
     if cutoff_hz <= 0:
         # unchanged
         return log_new_frame
@@ -82,8 +82,8 @@ def low_pass_filter( #this function is ready for batch processing
     # the more intensity, the shorter the time constant
     if inten01 is not None: #inten01 is None if the following is false: if self.cutoff_hz > 0 or self.shot_noise_rate_hz > 0:  
         eps = inten01*(delta_time/tau) # (b x h x w)
-        b, h, w = eps.size()
-        print(f"eps has size {b}x{h}x{w}")
+        #b, h, w = eps.size()
+        #print(f"eps has size {b}x{h}x{w}")
         max_eps = torch.max(eps)
         if max_eps >0.3:
             IIR_MAX_WARNINGS = 10
@@ -100,8 +100,8 @@ def low_pass_filter( #this function is ready for batch processing
     # first internal state is updated
     new_lp_log_frame = (1-eps)*lp_log_frame+eps*log_new_frame
 
-    b, h, w = new_lp_log_frame.size()
-    print(f"new_lp_log_frame has size {b}x{h}x{w}")
+    #b, h, w = new_lp_log_frame.size()
+    #print(f"new_lp_log_frame has size {b}x{h}x{w}")
 
     # then 2nd internal state (output) is updated from first
     # Note that observations show that one pole is nearly always dominant,
@@ -109,8 +109,8 @@ def low_pass_filter( #this function is ready for batch processing
 
     # (1-eps)*self.lpLogFrame1+eps*self.lpLogFrame0 # was 2nd-order,
     # now 1st order.
-    print('Finished the low-pass filter part!')
-    print('')
+    #print('Finished the low-pass filter part!')
+    #print('')
     return new_lp_log_frame
 
 low_pass_filter.iir_warning_count=0
@@ -162,7 +162,7 @@ def compute_event_map(diff_frame, pos_thres, neg_thres): #This function is ready
     Returns:
         pos_evts_frame, neg_evts_frame; 3D Tensors of integer ON and OFF event counts [batch_size, height, width]
     """
-    print('Now starting the compute_event_map function')
+    #print('Now starting the compute_event_map function')
     # Extract positive and negative differences
     pos_frame = F.relu(diff_frame)  # Keeps all positive values [batch_size, height, width]
     neg_frame = F.relu(-diff_frame)  # Keeps all negative values [batch_size, height, width]
@@ -170,10 +170,10 @@ def compute_event_map(diff_frame, pos_thres, neg_thres): #This function is ready
     # Compute quantized number of ON and OFF events for each pixel
     pos_evts_frame = (pos_frame / pos_thres).floor().type(torch.int32)
     neg_evts_frame = (neg_frame / neg_thres).floor().type(torch.int32)
-    b, h, w = pos_evts_frame.size()
-    print(f"pos_evts_frame has size {b}x{h}x{w}")
-    print('Finished the compute_event_map function')
-    print('')
+    #b, h, w = pos_evts_frame.size()
+    #print(f"pos_evts_frame has size {b}x{h}x{w}")
+    #print('Finished the compute_event_map function')
+    #print('')
     
 
     return pos_evts_frame, neg_evts_frame
