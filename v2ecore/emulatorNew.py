@@ -623,6 +623,9 @@ class EventEmulator(object):
             if window_name not in self.show_list:
                 d = len(self.show_list) * 200
                 cv2.moveWindow(window_name, int(self.screen_width / 8 + d), int(self.screen_height / 8 + d / 2))
+                window_x = int((self.screen_width - self.output_width) / 2)
+                window_y = int((self.screen_height - self.output_height) / 2)
+                cv2.moveWindow(window_name, window_x, window_y)
                 self.show_list.append(window_name)
                 if self.save_dvs_model_state: 
                     fn = os.path.join(self.output_folder, window_name + '.avi')
