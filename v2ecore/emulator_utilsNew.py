@@ -168,7 +168,7 @@ def compute_event_map(diff_frame, pos_thres, neg_thres): #This function is ready
     neg_frame = F.relu(-diff_frame)  # Keeps all negative values [batch_size, height, width]
 
     # Compute quantized number of ON and OFF events for each pixel
-    pos_evts_frame = (pos_frame / pos_thres).floor().type(torch.int32)
+    pos_evts_frame = (pos_frame / pos_thres).floor().type(torch.int32) #divide by the threshold to get the amount of 'positive' events in the pixel, and floor to integer since amount of events is an integer
     neg_evts_frame = (neg_frame / neg_thres).floor().type(torch.int32)
     #b, h, w = pos_evts_frame.size()
     #print(f"pos_evts_frame has size {b}x{h}x{w}")

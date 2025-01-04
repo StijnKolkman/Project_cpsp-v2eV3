@@ -39,14 +39,18 @@ emulatorNew = EventEmulator(
     sigma_thres         = 0.03,
     cutoff_hz           = 1,
     leak_rate_hz        = 1, 
-    shot_noise_rate_hz  = 1,
     batch_size          = batch_size,
     device              = device,
     refractory_period_s = 0.01,
+    output_folder       = 'output/',
 
     # having this will allow H5 output
-    output_folder       = 'output/', 
     dvs_h5              = 'eventsH5',
+
+    # Other possible output format
+    dvs_aedat2          = None, #currently doesnt work with batch processing
+    dvs_aedat4          = None, #currently doesnt work with batch processing
+    dvs_text            = None, #currently doesnt work with batch processing
 
     # True when the input is in hdr format (then it will skip the linlog conversion step)
     hdr                 = False,
@@ -60,11 +64,18 @@ emulatorNew = EventEmulator(
     #scidvs
     scidvs              = False,
 
-    # Parameter to show an image and to save it to an avi file. If show_dvs_model_state is enabled it will output the frames and will wait for a key press before it continues
-    show_dvs_model_state = ['new_frame', 'lp_log_frame','diff_frame'], # options:['all','new_frame', 'log_new_frame','lp_log_frame', 'scidvs_highpass', 'photoreceptor_noise_arr', 'cs_surround_frame','c_minus_s_frame', 'base_log_frame', 'diff_frame'])
+    # Parameter to show an image and to save it to an avi file. If show_dvs_model_state is enabled it will output the frames and will wait for a key press before it continues. Pressing 'x' will quite the process
+    show_dvs_model_state = None, #['new_frame', 'lp_log_frame','diff_frame'], # options:['all','new_frame', 'log_new_frame','lp_log_frame', 'scidvs_highpass', 'photoreceptor_noise_arr', 'cs_surround_frame','c_minus_s_frame', 'base_log_frame', 'diff_frame'])
     output_height       =200, #output height of the window
     output_width        =200,
-    save_dvs_model_state= True
+    save_dvs_model_state= True,
+
+    #define shot noise or not 
+    shot_noise_rate_hz  = 1,
+    label_signal_noise  = False, #Currently doesnt work with batch processing and also doesnt work in the original code
+
+    #record the state of a single pixel (input is tuple)
+    record_single_pixel_states = (1, 10, 20) #example tuple containing pixel info: batch, height, width
 )
 # **IMPORTANT** make torch static, likely get faster emulation (might also cause memory issue)
 torch.set_grad_enabled(False)
@@ -104,7 +115,7 @@ for i, video_file in enumerate(video_files):
 
 new_events = None                                           #Initialise the new_events. Will be filled by the emulator with events
 idx        = 0                                              #Initialise counter
-N_frames   = 2                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
+N_frames   = 10                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
 ret        = torch.zeros(batch_size,device=device)          #Tensor that stores the return value of cap.read()
 
 
@@ -124,16 +135,16 @@ while True:
         if ret:
             all_ret_false = False
             frame_tensor[i] = torch.from_numpy(frame_read).float().to(device)  # Convert frame (np array) to tensor
-            print("Size of frame_tensor[{}]: {}".format(i, frame_tensor[i].size()))
+            #print("Size of frame_tensor[{}]: {}".format(i, frame_tensor[i].size()))
         else:
             # Append a zero tensor if video is finished
             frame_tensor[i] = torch.zeros((max_height, max_width), device=device) #Not really needed anymore since it is assumed that all files will have the same number of frames
 
     if all_ret_false:  # Stop if all videos are done
         break
-    print("Size of frame_tensor: {}".format(frame_tensor.size()))
+    #print("Size of frame_tensor: {}".format(frame_tensor.size()))
     luma_frame_tensor = (frame_tensor * weights).sum(dim=-1)  # Compute luma frame
-    print("Size of luma_frame_tensor: {}".format(luma_frame_tensor.size()))
+    #print("Size of luma_frame_tensor: {}".format(luma_frame_tensor.size()))
     # Generate events
     print("="*50)
     print(f"Processing batch {idx + 1} of in total {N_frames} batches")
