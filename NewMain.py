@@ -34,10 +34,10 @@ if batch_size == 0:
 
 # define a emulator (set the settings of the emulator)
 emulatorNew = EventEmulator(
-    pos_thres           = 0.01,
-    neg_thres           = 0.01,
+    pos_thres           = 0.2,
+    neg_thres           = 0.2,
     sigma_thres         = 0.03,
-    cutoff_hz           = 1,
+    cutoff_hz           = 200,
     leak_rate_hz        = 1, 
     batch_size          = batch_size,
     device              = device,
@@ -65,13 +65,13 @@ emulatorNew = EventEmulator(
     scidvs              = False,
 
     # Parameter to show an image and to save it to an avi file. If show_dvs_model_state is enabled it will output the frames and will wait for a key press before it continues. Pressing 'x' will quite the process
-    show_dvs_model_state = ['new_frame','diff_frame'], # options:['all','new_frame', 'log_new_frame','lp_log_frame', 'scidvs_highpass', 'photoreceptor_noise_arr', 'cs_surround_frame','c_minus_s_frame', 'base_log_frame', 'diff_frame'])
+    show_dvs_model_state = ['diff_frame','lp_log_frame', 'log_new_frame'], # options:['all','new_frame', 'log_new_frame','lp_log_frame', 'scidvs_highpass', 'photoreceptor_noise_arr', 'cs_surround_frame','c_minus_s_frame', 'base_log_frame', 'diff_frame'])
     output_height       =200, #output height of the windowg
     output_width        =200,
     save_dvs_model_state= True,
 
     #define shot noise or not 
-    shot_noise_rate_hz  = 1,
+    shot_noise_rate_hz  = 0,
     label_signal_noise  = False, #Currently doesnt work with batch processing and also doesnt work in the original code
 
     #record the state of a single pixel (input is tuple)
@@ -147,7 +147,7 @@ while True:
     #print("Size of luma_frame_tensor: {}".format(luma_frame_tensor.size()))
     # Generate events
     print("="*50)
-    print(f"Processing batch {idx + 1} of in total {N_frames} batches")
+    print(f"Processing frame_batch {idx + 1} of in total {N_frames} frame_batches")
     print("="*50)
     new_events = emulatorNew.generate_events(luma_frame_tensor, current_time)
 

@@ -427,6 +427,7 @@ class EventEmulator(object):
 
         for vw in self.video_writers:
             logger.info(f'closing video AVI {vw}')
+            print('now closing all videos')
             self.video_writers[vw].release()
 
         if not self.record_single_pixel_states is None:
@@ -581,7 +582,7 @@ class EventEmulator(object):
         self.cs_surround_frame: Optional[torch.Tensor] = None
         self.c_minus_s_frame: Optional[torch.Tensor] = None
         self.base_log_frame: Optional[torch.Tensor] = None # memorized log intensities at change detector
-        self.diff_frame: Optional[torch.Tensor] = None  # [height, width]
+        self.diff_frame: Optional[torch.Tensor] = None  # [Batch, height, width]
         self.scidvs_highpass: Optional[torch.Tensor] = None
         self.scidvs_previous_photo: Optional[torch.Tensor] = None
         self.scidvs_tau_arr: Optional[torch.Tensor] = None
@@ -610,44 +611,45 @@ class EventEmulator(object):
 
         batch_size, height, width = inp.shape
 
-        # Loop through each image in the batch
         for idx in range(batch_size):
+            # Extract individual image from batch
             img = np.array(inp[idx].cpu().data.numpy())
             (min_val, max_val) = EventEmulator.MODEL_STATES[name]
 
             # Normalize the image
             img = (img - min_val) / (max_val - min_val)
 
-            # Create unique window name for each image
+            # Create unique window name for the image
             window_name = f"{name}_img{idx}"
 
+            # Initialize the VideoWriter if not already initialized
+            if window_name not in self.video_writers:
+                if self.save_dvs_model_state:
+                    fn = os.path.join(self.output_folder, window_name + '.avi')
+                    fourcc = cv2.VideoWriter_fourcc(*'MJPG')  # Universal codec
+                    vw = cv2.VideoWriter(fn, fourcc, 30, (width, height))  # Match width, height
+                    self.video_writers[window_name] = vw
+
+            # Add text overlay
+            cv2.putText(img, f'fr:{self.frame_counter} t:{self.t_previous:.4f}s', org=(0, height - 10),
+                        fontScale=1.3, color=(0, 0, 0), fontFace=cv2.FONT_HERSHEY_PLAIN, thickness=1)
+            cv2.putText(img, f'fr:{self.frame_counter} t:{self.t_previous:.4f}s', org=(1, height - 11),
+                        fontScale=1.3, color=(255, 255, 255), fontFace=cv2.FONT_HERSHEY_PLAIN, thickness=1)
+
+            # Display the image
             cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
             if window_name not in self.show_list:
                 d = len(self.show_list) * 200
                 cv2.moveWindow(window_name, int(self.screen_width / 8 + d), int(self.screen_height / 8 + d / 2))
-                window_x = int((self.screen_width - self.output_width) / 2)
-                window_y = int((self.screen_height - self.output_height) / 2)
-                cv2.moveWindow(window_name, window_x, window_y)
                 self.show_list.append(window_name)
-                if self.save_dvs_model_state: 
-                    fn = os.path.join(self.output_folder, window_name + '.avi')
-                    vw = video_writer(fn, self.output_height, self.output_width)
-                    self.video_writers[window_name] = vw
 
-            # Add text to the image
-            cv2.putText(img, f'fr:{self.frame_counter} t:{self.t_previous:.4f}s', org=(0, self.output_height),
-                        fontScale=1.3, color=(0, 0, 0), fontFace=cv2.FONT_HERSHEY_PLAIN, thickness=1)
-            cv2.putText(img, f'fr:{self.frame_counter} t:{self.t_previous:.4f}s', org=(1, self.output_height - 1),
-                        fontScale=1.3, color=(255, 255, 255), fontFace=cv2.FONT_HERSHEY_PLAIN, thickness=1)
-
-            # Show the image
             cv2.imshow(window_name, img)
 
-            # Save the frame if required
+            # Save frame to AVI file if required
             if self.save_dvs_model_state:
-                self.video_writers[window_name].write(
-                    cv2.cvtColor((img * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
-                )
+                frame = cv2.cvtColor((img * 255).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+                self.video_writers[window_name].write(frame)
+
 
     def generate_events(self, new_frame, t_frame):
         """Compute events in new frame.
@@ -811,7 +813,7 @@ class EventEmulator(object):
                         self.dont_show_list.append(s)
                     else:
                         self._show(f, s)  # show the frame f with name s
-            k = cv2.waitKey(0)
+            k = cv2.waitKey(30)
             if k == 27 or k == ord('x'):
                 v2e_quit()
 
@@ -1155,6 +1157,7 @@ class EventEmulator(object):
 
     # Works with batch processing
     def _update_csdvs(self, delta_time):
+
         '''
         Parameters
         ----------
