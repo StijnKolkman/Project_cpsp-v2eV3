@@ -719,7 +719,7 @@ class EventEmulator(object):
         if self.scidvs:
             if self.scidvs_highpass is None:
                 self.scidvs_highpass = torch.zeros_like(self.lp_log_frame)
-                self.scidvs_previous_photo = torch.clone(self.lp_log_frame).detach()
+                self.scidvs_previous_photo = torch.clone(self.lp_log_frame).detach() # NOTE: why detach here? not on gpu anymore
             self.scidvs_highpass += (self.lp_log_frame - self.scidvs_previous_photo) \
                                     - delta_time * self.scidvs_dvdt(self.scidvs_highpass,self.scidvs_tau_arr)
             self.scidvs_previous_photo = torch.clone(self.lp_log_frame)
@@ -949,7 +949,7 @@ class EventEmulator(object):
                 logger.warning(f'nonmonotonic timestamp(s) at indices {idx}')
             if signnoise_label is not None:
                 signnoise_label=signnoise_label.cpu().numpy()
-            if self.dvs_h5 is not None:
+            if self.dvs_h5 is not None:  
                 # convert data to uint32 (microsecs) format
                 temp_events = np.array(events, dtype=np.float32)
                 temp_events[:, 0] = temp_events[:, 0] * 1e6
