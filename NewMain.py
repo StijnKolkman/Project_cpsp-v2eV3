@@ -71,7 +71,7 @@ emulatorNew = EventEmulator(
     save_dvs_model_state= True,
 
     #define shot noise or not 
-    shot_noise_rate_hz  = 10,
+    shot_noise_rate_hz  = 0,
     label_signal_noise  = False, #Currently doesnt work with batch processing and also doesnt work in the original code
 
     #record the state of a single pixel (input is tuple)
@@ -115,7 +115,7 @@ for i, video_file in enumerate(video_files):
 
 new_events = None                                           #Initialise the new_events. Will be filled by the emulator with events
 idx        = 0                                              #Initialise counter
-N_frames   = 35                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
+N_frames   = 10                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
 ret        = torch.zeros(batch_size,device=device)          #Tensor that stores the return value of cap.read()
 
 
