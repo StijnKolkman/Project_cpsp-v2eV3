@@ -7,7 +7,7 @@ import atexit
 import struct
 
 # check https://gitlab.com/inivation/dv/dv-processing to install dv-processing-python
-import dv_processing as dv
+# import dv_processing as dv
 
 from v2ecore.v2e_utils import v2e_quit
 
@@ -32,14 +32,14 @@ class AEDat4Output:
         self.sizex = output_width
         self.sizey = output_height
          
-        self.store = dv.EventStore()
+        # self.store = dv.EventStore()
 
         resolution = (640, 480)
         # Event only configuration
-        config = dv.io.MonoCameraWriter.EventOnlyConfig("DVXplorer_sample", resolution)
+        # config = dv.io.MonoCameraWriter.EventOnlyConfig("DVXplorer_sample", resolution)
 
         # Create the writer instance, it will only have a single event output stream.
-        self.writer = dv.io.MonoCameraWriter(filepath, config)
+        # self.writer = dv.io.MonoCameraWriter(filepath, config)
 
     def cleanup(self):
         self.close()
