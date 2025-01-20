@@ -95,6 +95,7 @@ def low_pass_filter( #this function is ready for batch processing
 
         eps = torch.clamp(eps, max=1)  # keep filter stable
     else:
+        print('using standard eps')
         eps=delta_time/tau 
 
     # first internal state is updated
