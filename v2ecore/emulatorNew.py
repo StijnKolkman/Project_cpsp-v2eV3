@@ -860,7 +860,7 @@ class EventEmulator(object):
             start=self.t_previous+ts_step,
             end=t_frame,
             steps=min_ts_steps, dtype=torch.float32, device=self.device)
-        ts = ts.unsqueeze(0).repeat(self.batch_size, 1)  # size = (batch_size, steps) --> THIS IS WRONG< NEED TO CHANGE!!!!
+        ts = ts.unsqueeze(0).repeat(self.batch_size, 1)  # size = (batch_size, steps)
 
         print('The size of ts is: ', ts.shape)
         # print(f'ts={ts}')
