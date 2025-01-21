@@ -23,6 +23,7 @@ import glob
 
 # Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  This allows it to work on a cpu
+video_folder = 'input/*.mp4'
 print(f"Device: {device}")
 video_folder = 'input/*.mov'
 
@@ -35,11 +36,11 @@ if batch_size == 0:
 
 # define a emulator (set the settings of the emulator)
 emulatorNew = EventEmulator(
-    pos_thres           = 0.2,
-    neg_thres           = 0.2,
+    pos_thres           = 0.5,
+    neg_thres           = 0.5,
     sigma_thres         = 0.03,
     cutoff_hz           = 200,
-    leak_rate_hz        = 1, 
+    leak_rate_hz        = 0.0001, 
     batch_size          = batch_size,
     device              = device,
     refractory_period_s = 0.01,
@@ -66,6 +67,7 @@ emulatorNew = EventEmulator(
     scidvs              = False,
 
     # Parameter to show an image and to save it to an avi file. If show_dvs_model_state is enabled it will output the frames and will wait for a key press before it continues. Pressing 'x' will quite the process
+    show_dvs_model_state = ['new_frame','diff_frame','lp_log_frame'], # options:['all','new_frame', 'log_new_frame','lp_log_frame', 'scidvs_highpass', 'photoreceptor_noise_arr', 'cs_surround_frame','c_minus_s_frame', 'base_log_frame', 'diff_frame'])
     show_dvs_model_state = ['new_frame','diff_frame'], # options:['all','new_frame', 'log_new_frame','lp_log_frame', 'scidvs_highpass', 'photoreceptor_noise_arr', 'cs_surround_frame','c_minus_s_frame', 'base_log_frame', 'diff_frame'])
     output_height       =200, #output height of the windowg
     output_width        =200,
@@ -116,12 +118,12 @@ for i, video_file in enumerate(video_files):
 
 new_events = None                                           #Initialise the new_events. Will be filled by the emulator with events
 idx        = 0                                              #Initialise counter
-N_frames   = 10                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
+N_frames   = 500                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
 ret        = torch.zeros(batch_size,device=device)          #Tensor that stores the return value of cap.read()
 
 
-max_height  = 720                                                                        # Example max height
-max_width   = 1280                                                                       # Example max width
+max_height  = 600#720                                                                        # Example max height
+max_width   = 800#1280                                                                       # Example max width
 channels    = 3                                                                          # RGB
 frame_tensor = torch.zeros((batch_size, max_height, max_width, channels), device=device) # Tensor containing the frames
 luma_frame_tensor = torch.zeros((batch_size, max_height, max_width), device=device)      # Tensor containing the luma_frames

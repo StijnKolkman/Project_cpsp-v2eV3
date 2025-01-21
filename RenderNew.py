@@ -5,6 +5,7 @@ import numpy as np  # Ensure numpy is imported for handling arrays
 
 file_path = 'output/eventsH5.h5' # file path for the h5 file containing the events
 
+Video_number = 0 # sets the video in the batch where you want to render the eventvideo for 
 
 renderer = EventRenderer(
     full_scale_count=1,
@@ -13,7 +14,7 @@ renderer = EventRenderer(
     preview=True,
     #exposure_mode=ExposureMode.DURATION,
     exposure_value=1/30.0,  # 30 FPS
-    avi_frame_rate=30,
+    avi_frame_rate=30,  
 )
 
 with h5py.File(file_path, 'r') as hdf:
@@ -43,10 +44,10 @@ with h5py.File(file_path, 'r') as hdf:
 #print(test)
 
 # Filter rows where the first column is equal to 0
-filtered_data = all_data[all_data[:, 0] == 0]
+filtered_data = all_data[all_data[:, 0] == Video_number] # 0 means that you are gonna render the first video. 
 # Divide the second column by 1000
 filtered_data_no_first_col = filtered_data[:, 1:]  # Select all columns except the first
-height, width = 720, 1280
+height, width = 600,800
 renderer.render_events_to_frames(filtered_data_no_first_col, height, width)
 
 
