@@ -22,19 +22,19 @@ import cv2                                                          # To read vi
 import glob
 
 # Configuration
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu") #  This allows it to work on a cpu
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # This allows it to work on a cpu
 video_folder = 'input/*.mp4'
 print(f"Device: {device}")
 video_folder = 'input/*.mov'
 
 # Read video files
-video_files = glob.glob(video_folder)                           #List of paths to the videos
-batch_size = len(video_files)                                   #The batch size is equal to the amount of videos
+video_files = glob.glob(video_folder)                           # List of paths to the videos
+batch_size = len(video_files)                                   # The batch size is equal to the amount of videos
 if batch_size == 0:
     print("No video files found in the specified folder.")
     exit()
 
-# define a emulator (set the settings of the emulator)
+# define the emulator (set the settings of the emulator)
 emulatorNew = EventEmulator(
     pos_thres           = 0.5,
     neg_thres           = 0.5,
@@ -84,14 +84,14 @@ emulatorNew = EventEmulator(
 torch.set_grad_enabled(False)
 
 # Initialize resources and tensors
-caps        = []                                                                    #here the videos will be saved
-fps           = 0                                                                   #fps of the videos, should be same for th videos
-num_of_frames = 0                                                                   #total number of frames. Should be the same for every video
-duration      = 0                                                                   # Duration of the videos, should be the same for every video
-delta_t       = 0                                                                   #The time between two frames. IS ASSUMED TO BE THE SAME FOR EVERY VIDEO
-current_time  = 0                                                                   #Current time is not a tensor anymore since we can assume that every video has the same size
+caps        = []               #here the videos will be saved
+fps           = 0              #fps of the videos, should be same for th videos
+num_of_frames = 0              #total number of frames. Should be the same for every video
+duration      = 0              # Duration of the videos, should be the same for every video
+delta_t       = 0              #The time between two frames. IS ASSUMED TO BE THE SAME FOR EVERY VIDEO
+current_time  = 0              #Current time is not a tensor anymore since we can assume that every video has the same size
 
-#loop over the video's in the input folder to get the frames and the information (fps, num_of_frames, duration, delta_t, current_time)
+#loop over the videos in the input folder to get the frames and the information (fps, num_of_frames, duration, delta_t, current_time)
 #maybe add something here to check that the videos really have the same fps and delta_t
 print() 
 for i, video_file in enumerate(video_files): 
@@ -116,8 +116,8 @@ for i, video_file in enumerate(video_files):
     print("Delta Frame Time: {}s".format(delta_t))
     print() 
 
-new_events = None                                           #Initialise the new_events. Will be filled by the emulator with events
-idx        = 0                                              #Initialise counter
+new_events = None                                           #Initialize the new_events. Will be filled by the emulator with events
+idx        = 0                                              #Initialize counter
 N_frames   = 500                                              #Only Emulate the first N_frames of every video TODO: LATER REMOVE JUST TO MAKE TESTING TAKE LESS TIME!!!
 ret        = torch.zeros(batch_size,device=device)          #Tensor that stores the return value of cap.read()
 
