@@ -122,8 +122,8 @@ N_frames   = 500                                              #Only Emulate the 
 ret        = torch.zeros(batch_size,device=device)          #Tensor that stores the return value of cap.read()
 
 
-max_height  = 600#720                                                                        # Example max height
-max_width   = 800#1280                                                                       # Example max width
+max_height  = 720                                                                        # Example max height
+max_width   = 1280                                                                       # Example max width
 channels    = 3                                                                          # RGB
 frame_tensor = torch.zeros((batch_size, max_height, max_width, channels), device=device) # Tensor containing the frames
 luma_frame_tensor = torch.zeros((batch_size, max_height, max_width), device=device)      # Tensor containing the luma_frames
